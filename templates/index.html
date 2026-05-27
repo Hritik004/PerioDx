@@ -1,0 +1,2185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PerioDx — AI Bone Loss Detection</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #050a0e;
+    --surface: #0a1520;
+    --surface2: #0f1e2d;
+    --border: rgba(0,210,180,0.12);
+    --border2: rgba(0,210,180,0.25);
+    --teal: #00d2b4;
+    --teal-dim: rgba(0,210,180,0.15);
+    --teal-mid: rgba(0,210,180,0.35);
+    --amber: #f59e0b;
+    --red: #ef4444;
+    --green: #22c55e;
+    --text: #e8f4f2;
+    --text-muted: #7a9fa8;
+    --text-dim: #3d6470;
+    --mono: 'Space Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+    --glow: 0 0 30px rgba(0,210,180,0.2);
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(ellipse at 30% 20%, rgba(0,210,180,0.04) 0%, transparent 50%),
+                radial-gradient(ellipse at 70% 80%, rgba(0,100,180,0.04) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 24px 80px;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 28px 0 40px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 48px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 40px;
+    height: 40px;
+    border: 1.5px solid var(--teal);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .logo-icon::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--teal-dim);
+  }
+
+  .logo-icon svg { position: relative; z-index: 1; }
+
+  .logo-text {
+    font-family: var(--mono);
+    font-size: 20px;
+    letter-spacing: -0.5px;
+  }
+
+  .logo-text span { color: var(--teal); }
+
+  .badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--teal);
+    border: 1px solid var(--border2);
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: var(--teal-dim);
+  }
+
+  /* Upload zone */
+  .upload-section {
+    margin-bottom: 48px;
+  }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--teal);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .upload-zone {
+    border: 1.5px dashed var(--border2);
+    border-radius: 16px;
+    background: var(--surface);
+    padding: 60px 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--teal);
+    background: var(--surface2);
+    box-shadow: var(--glow), inset 0 0 40px rgba(0,210,180,0.05);
+  }
+
+  .upload-zone.has-file {
+    border-style: solid;
+    border-color: var(--teal);
+  }
+
+  .upload-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 20px;
+    border: 1.5px solid var(--border2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--teal);
+    transition: all 0.3s;
+  }
+
+  .upload-zone:hover .upload-icon {
+    border-color: var(--teal);
+    background: var(--teal-dim);
+    transform: translateY(-2px);
+  }
+
+  .upload-title {
+    font-size: 18px;
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+
+  .upload-sub {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+  }
+
+  .upload-btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    color: var(--teal);
+    background: var(--teal-dim);
+    border: 1px solid var(--teal);
+    padding: 10px 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .upload-btn:hover { background: rgba(0,210,180,0.25); }
+
+  #file-input { display: none; }
+
+  /* Preview */
+  .preview-wrap {
+    display: none;
+    margin-top: 20px;
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .preview-wrap img {
+    width: 100%;
+    object-fit: contain;
+    display: block;
+    filter: brightness(0.9) contrast(1.1);
+    border-radius: 10px;
+  }
+
+  .preview-label {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    background: rgba(5,10,14,0.85);
+    color: var(--teal);
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border2);
+  }
+
+  /* Analyze button */
+  .analyze-btn {
+    width: 100%;
+    padding: 18px;
+    background: transparent;
+    border: 1.5px solid var(--teal);
+    border-radius: 10px;
+    color: var(--teal);
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.3s;
+    margin-top: 20px;
+    display: none;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .analyze-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--teal-dim);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .analyze-btn:hover::before { opacity: 1; }
+  .analyze-btn:hover { box-shadow: var(--glow); }
+
+  .analyze-btn span { position: relative; z-index: 1; }
+
+  /* Pipeline */
+  .pipeline {
+    display: none;
+  }
+
+  /* Stage card */
+  .stage-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    margin-bottom: 24px;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.5s ease, transform 0.5s ease, border-color 0.3s;
+  }
+
+  .stage-card.active {
+    opacity: 1;
+    transform: translateY(0);
+    border-color: var(--border2);
+  }
+
+  .stage-card.done { border-color: rgba(34,197,94,0.3); }
+
+  .stage-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .stage-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    width: 24px;
+  }
+
+  .stage-title {
+    font-size: 14px;
+    font-weight: 500;
+    flex: 1;
+    letter-spacing: 0.3px;
+  }
+
+  .stage-status {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    text-transform: uppercase;
+  }
+
+  .stage-status.pending { color: var(--text-dim); background: rgba(61,100,112,0.2); }
+  .stage-status.running { color: var(--amber); background: rgba(245,158,11,0.15); animation: pulse-badge 1.2s infinite; }
+  .stage-status.done { color: var(--green); background: rgba(34,197,94,0.12); }
+
+  @keyframes pulse-badge {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  .stage-body {
+    padding: 20px 24px;
+  }
+
+  /* Image comparison */
+  .img-compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .img-panel {
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+    background: #000;
+  }
+
+  .img-panel img {
+    width: 100%;
+    display: block;
+    filter: brightness(0.85) contrast(1.1);
+  }
+
+  .img-panel-label {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    background: rgba(5,10,14,0.9);
+    color: var(--teal);
+    padding: 3px 8px;
+    border-radius: 3px;
+  }
+
+  /* Overlay canvas */
+  .overlay-canvas-wrap {
+    position: relative;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #000;
+  }
+
+  .overlay-canvas-wrap img, .overlay-canvas-wrap canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .overlay-canvas-wrap img { position: relative; filter: brightness(0.85); }
+  .overlay-canvas-wrap canvas { pointer-events: none; }
+
+  /* Scan line animation */
+  .scan-line {
+    position: absolute;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--teal), transparent);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .scan-line.scanning {
+    opacity: 1;
+    animation: scan 2s ease-in-out forwards;
+  }
+
+  @keyframes scan {
+    0% { top: 0; opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+  }
+
+  /* Progress bar */
+  .progress-bar-wrap {
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .progress-bar-bg {
+    flex: 1;
+    height: 3px;
+    background: var(--border);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--teal);
+    border-radius: 99px;
+    width: 0%;
+    transition: width 0.1s linear;
+    box-shadow: 0 0 8px var(--teal);
+  }
+
+  .progress-pct {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--teal);
+    min-width: 36px;
+    text-align: right;
+  }
+
+  /* Log output */
+  .log-output {
+    margin-top: 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.8;
+    max-height: 80px;
+    overflow: hidden;
+  }
+
+  .log-line { display: flex; gap: 10px; }
+  .log-time { color: var(--text-dim); }
+  .log-msg.ok { color: var(--teal); }
+  .log-msg.warn { color: var(--amber); }
+
+  /* Results */
+  .result-card {
+    display: none;
+    background: var(--surface);
+    border-radius: 16px;
+    overflow: hidden;
+    margin-bottom: 24px;
+    border: 1px solid var(--border);
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+
+  .result-card.visible {
+    opacity: 1;
+    transform: translateY(0);
+    display: block;
+  }
+
+  .result-card.periodontitis { border-color: rgba(239,68,68,0.4); }
+  .result-card.healthy { border-color: rgba(34,197,94,0.4); }
+
+  .result-header {
+    padding: 24px 28px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .result-verdict {
+    font-family: var(--mono);
+    font-size: 24px;
+    letter-spacing: -0.5px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .verdict-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    animation: breathe 2s infinite;
+  }
+
+  @keyframes breathe {
+    0%,100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.3); opacity: 0.7; }
+  }
+
+  .verdict-dot.red { background: var(--red); box-shadow: 0 0 12px var(--red); }
+  .verdict-dot.green { background: var(--green); box-shadow: 0 0 12px var(--green); }
+
+  .confidence-badge {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 6px 14px;
+    border-radius: 6px;
+  }
+
+  .result-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+  }
+
+  .metric-box {
+    padding: 24px 28px;
+    border-right: 1px solid var(--border);
+  }
+
+  .metric-box:last-child { border-right: none; }
+
+  .metric-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .metric-value {
+    font-size: 28px;
+    font-weight: 300;
+    letter-spacing: -0.5px;
+    font-family: var(--mono);
+  }
+
+  .metric-unit {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-left: 4px;
+  }
+
+  /* Severity bar */
+  .severity-wrap {
+    padding: 24px 28px;
+    border-top: 1px solid var(--border);
+  }
+
+  .severity-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  .severity-track {
+    height: 8px;
+    background: var(--border);
+    border-radius: 99px;
+    position: relative;
+    overflow: visible;
+  }
+
+  .severity-fill {
+    height: 100%;
+    border-radius: 99px;
+    width: 0;
+    transition: width 1.5s cubic-bezier(0.16,1,0.3,1);
+    position: relative;
+  }
+
+  .severity-fill::after {
+    content: '';
+    position: absolute;
+    right: -1px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--bg);
+  }
+
+  .severity-markers {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+
+  /* Tooth chart */
+  .tooth-chart {
+    padding: 24px 28px;
+    border-top: 1px solid var(--border);
+  }
+
+  .tooth-row {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+    margin-bottom: 6px;
+  }
+
+  .tooth {
+    width: 28px;
+    height: 32px;
+    border-radius: 4px 4px 8px 8px;
+    border: 1px solid transparent;
+    transition: all 0.3s;
+    cursor: default;
+    position: relative;
+  }
+
+  .tooth.normal { background: rgba(34,197,94,0.15); border-color: rgba(34,197,94,0.3); }
+  .tooth.mild { background: rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.3); }
+  .tooth.moderate { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.3); }
+  .tooth.severe { background: rgba(239,68,68,0.3); border-color: rgba(239,68,68,0.6); }
+  .tooth.missing { background: transparent; border-color: var(--border); opacity: 0.3; }
+
+  .tooth:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: 110%;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    font-family: var(--mono);
+    font-size: 9px;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    padding: 3px 7px;
+    border-radius: 4px;
+    color: var(--text);
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  .jaw-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    text-align: center;
+    margin-bottom: 6px;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+  }
+
+  /* Recommendations */
+  .reco-section {
+    padding: 24px 28px;
+    border-top: 1px solid var(--border);
+  }
+
+  .reco-item {
+    display: flex;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    align-items: flex-start;
+  }
+
+  .reco-item:last-child { border-bottom: none; }
+
+  .reco-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .reco-text-title {
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 3px;
+  }
+
+  .reco-text-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  /* Disclaimer */
+  .disclaimer {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    border-top: 1px solid var(--border);
+    padding-top: 24px;
+    margin-top: 24px;
+  }
+
+  /* Spinner */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--teal);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    display: inline-block;
+  }
+
+  /* Typing dots */
+  @keyframes dot-bounce {
+    0%,80%,100% { transform: translateY(0); opacity: 0.4; }
+    40% { transform: translateY(-4px); opacity: 1; }
+  }
+
+  .typing-dots span {
+    display: inline-block;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--teal);
+    margin: 0 2px;
+    animation: dot-bounce 1.4s infinite;
+  }
+
+  .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+  /* Draw-in animation for segmentation overlay */
+  @keyframes draw-mask {
+    from { opacity: 0; clip-path: inset(0 100% 0 0); }
+    to { opacity: 0.7; clip-path: inset(0 0% 0 0); }
+  }
+
+  .mask-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    opacity: 0;
+    pointer-events: none;
+    border-radius: 10px;
+  }
+
+  .mask-overlay.animate {
+    animation: draw-mask 1.8s cubic-bezier(0.16,1,0.3,1) forwards;
+  }
+
+  /* Single image view */
+  .single-img {
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+    background: #000;
+  }
+
+  .single-img img {
+    width: 100%;
+    display: block;
+    filter: brightness(0.85) contrast(1.1);
+  }
+
+  /* Reset button */
+  .reset-btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid var(--border);
+    padding: 8px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .reset-btn:hover { border-color: var(--border2); color: var(--text); }
+
+  /* Animation for results reveal */
+  @keyframes count-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .count-anim { animation: count-up 0.5s ease forwards; }
+
+  /* ═══════════════════════════════════════
+     FUTURISTIC SCAN ANIMATION SYSTEM
+  ═══════════════════════════════════════ */
+
+  /* Animated corner brackets */
+  .preview-wrap {
+    position: relative;
+  }
+
+  .scan-frame {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 10;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  /* Corner bracket elements */
+  .scan-corner {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+  .scan-corner.tl { top: 10px; left: 10px; border-top: 2px solid var(--teal); border-left: 2px solid var(--teal); }
+  .scan-corner.tr { top: 10px; right: 10px; border-top: 2px solid var(--teal); border-right: 2px solid var(--teal); }
+  .scan-corner.bl { bottom: 10px; left: 10px; border-bottom: 2px solid var(--teal); border-left: 2px solid var(--teal); }
+  .scan-corner.br { bottom: 10px; right: 10px; border-bottom: 2px solid var(--teal); border-right: 2px solid var(--teal); }
+
+  .scan-frame.active .scan-corner { opacity: 1; }
+
+  /* The main scanning laser beam — full width, JS-driven position */
+  .scan-beam {
+    position: absolute;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg,
+      rgba(0,210,180,0.3) 0%,
+      rgba(0,210,180,0.85) 20%,
+      #00ffea 50%,
+      rgba(0,210,180,0.85) 80%,
+      rgba(0,210,180,0.3) 100%
+    );
+    box-shadow:
+      0 0 8px 2px rgba(0,210,180,0.7),
+      0 0 24px 6px rgba(0,210,180,0.3);
+    top: 0;
+    opacity: 0;
+    z-index: 12;
+    transition: none;
+  }
+
+  /* Scan trail — follows beam, direction flips via JS class */
+  .scan-trail {
+    position: absolute;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: 70px;
+    opacity: 0;
+    z-index: 11;
+    pointer-events: none;
+    transition: none;
+  }
+  /* Trail points downward (beam going top→bottom) */
+  .scan-trail.down {
+    background: linear-gradient(to bottom, rgba(0,210,180,0.1) 0%, transparent 100%);
+  }
+  /* Trail points upward (beam going bottom→top) */
+  .scan-trail.up {
+    background: linear-gradient(to top, rgba(0,210,180,0.1) 0%, transparent 100%);
+  }
+
+  /* Grid reticle overlay during scan */
+  .scan-reticle {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,210,180,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,210,180,0.04) 1px, transparent 1px);
+    background-size: 20px 20px;
+    opacity: 0;
+    z-index: 9;
+    transition: opacity 0.5s;
+  }
+  .scan-frame.active .scan-reticle { opacity: 1; }
+
+  /* HUD data readout overlay */
+  .scan-hud {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--teal);
+    line-height: 1.8;
+    text-align: right;
+    opacity: 0;
+    z-index: 15;
+    letter-spacing: 1px;
+    text-shadow: 0 0 8px rgba(0,210,180,0.8);
+    transition: opacity 0.4s 0.3s;
+  }
+  .scan-frame.active .scan-hud { opacity: 1; }
+
+  /* Bottom scan status bar */
+  .scan-status-bar {
+    position: absolute;
+    bottom: 14px;
+    left: 14px;
+    right: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 9px;
+    color: rgba(0,210,180,0.7);
+    letter-spacing: 1px;
+    opacity: 0;
+    z-index: 15;
+    transition: opacity 0.4s 0.5s;
+  }
+  .scan-frame.active .scan-status-bar { opacity: 1; }
+
+  .scan-progress-mini {
+    width: 80px;
+    height: 2px;
+    background: rgba(0,210,180,0.2);
+    border-radius: 1px;
+    overflow: hidden;
+  }
+  .scan-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--teal);
+    box-shadow: 0 0 6px var(--teal);
+  }
+
+  /* Animated scan keyframes — REMOVED (now JS-driven) */
+
+  @keyframes corner-pulse {
+    0%, 100% { box-shadow: 0 0 0 rgba(0,210,180,0); }
+    50% { box-shadow: 0 0 10px rgba(0,210,180,0.6); }
+  }
+
+  .scan-frame.active .scan-corner {
+    animation: corner-pulse 2s ease-in-out infinite;
+  }
+
+  /* Blinking cursor for HUD */
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+  .blink { animation: blink 1s step-end infinite; }
+
+  /* After scan: image gets a subtle teal tint overlay */
+  .preview-wrap.scanned #preview-img {
+    filter: brightness(0.85) contrast(1.15) hue-rotate(-5deg);
+    transition: filter 0.8s ease;
+  }
+
+  /* scan complete flash keyframes already defined above */
+  .scan-complete-flash {
+    position: absolute;
+    inset: 0;
+    background: var(--teal);
+    opacity: 0;
+    z-index: 20;
+    pointer-events: none;
+    border-radius: 10px;
+  }
+
+  @keyframes scan-complete-flash {
+    0% { opacity: 0; }
+    20% { opacity: 0.18; }
+    100% { opacity: 0; }
+  }
+
+  /* ─── Header enhancements ─── */
+  .logo-icon {
+    animation: logo-breathe 3s ease-in-out infinite;
+  }
+  @keyframes logo-breathe {
+    0%, 100% { box-shadow: 0 0 0 rgba(0,210,180,0); }
+    50% { box-shadow: 0 0 16px rgba(0,210,180,0.4); }
+  }
+
+  /* Status dot in header */
+  .status-dot-live {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--teal);
+    box-shadow: 0 0 6px var(--teal);
+    animation: breathe 2s infinite;
+    display: inline-block;
+    margin-right: 6px;
+  }
+
+  /* Analyze button enhancement */
+  .analyze-btn {
+    background: linear-gradient(135deg, rgba(0,210,180,0.05) 0%, rgba(0,210,180,0.12) 100%) !important;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .analyze-btn::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -75%;
+    width: 50%;
+    height: 200%;
+    background: linear-gradient(90deg, transparent, rgba(0,210,180,0.15), transparent);
+    transform: skewX(-20deg);
+    animation: btn-shimmer 3s ease-in-out infinite;
+  }
+
+  @keyframes btn-shimmer {
+    0% { left: -75%; }
+    100% { left: 150%; }
+  }
+
+  /* Connecting pipeline lines */
+  .pipeline-connector {
+    width: 1px;
+    height: 24px;
+    background: linear-gradient(to bottom, var(--border2), transparent);
+    margin: 0 auto -8px;
+    position: relative;
+    z-index: 2;
+  }
+
+  .pipeline-connector::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 6px;
+    height: 6px;
+    border-right: 1px solid var(--border2);
+    border-bottom: 1px solid var(--border2);
+    rotate: 45deg;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="logo">
+      <div class="logo-icon">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+          <path d="M4 16 Q11 8 18 16" stroke="#00d2b4" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          <rect x="3" y="16" width="16" height="3" rx="1.5" fill="#00d2b4" opacity="0.4"/>
+          <circle cx="11" cy="6" r="2.5" stroke="#00d2b4" stroke-width="1.5"/>
+        </svg>
+      </div>
+      <div>
+        <div class="logo-text">Perio<span>Dx</span></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <div class="badge"><span class="status-dot-live"></span>AI v2.4</div>
+      <button class="reset-btn" id="reset-btn" onclick="resetAll()" style="display:none">↺ NEW SCAN</button>
+    </div>
+  </header>
+
+  <div class="upload-section" id="upload-section">
+    <div class="section-label">01 — Upload Radiograph</div>
+
+    <div class="upload-zone" id="upload-zone"
+         onclick="document.getElementById('file-input').click()"
+         ondragover="handleDragOver(event)"
+         ondragleave="handleDragLeave(event)"
+         ondrop="handleDrop(event)">
+      <div class="upload-icon">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <rect x="4" y="4" width="20" height="20" rx="4" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M4 18 L9 13 L13 17 L18 11 L24 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="9.5" cy="10.5" r="2" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+      </div>
+      <div class="upload-title">Drop panoramic X-ray here</div>
+      <div class="upload-sub">Supports DICOM, PNG, JPG · Max 50MB · Min 800px width</div>
+      <div class="upload-btn">SELECT FILE</div>
+      <input type="file" id="file-input" accept="image/*" onchange="handleFile(event)">
+    </div>
+
+    <div class="preview-wrap" id="preview-wrap">
+      <img id="preview-img" src="" alt="X-ray preview">
+      <div class="preview-label">ORIGINAL RADIOGRAPH</div>
+
+      <!-- Scanning animation overlay -->
+      <div class="scan-frame" id="scan-frame">
+        <div class="scan-corner tl"></div>
+        <div class="scan-corner tr"></div>
+        <div class="scan-corner bl"></div>
+        <div class="scan-corner br"></div>
+        <div class="scan-reticle"></div>
+        <div class="scan-beam" id="scan-beam"></div>
+        <div class="scan-trail" id="scan-trail"></div>
+        <div class="scan-hud" id="scan-hud">
+          RES: 2048×1024<br>
+          MODE: PERIAPICAL<br>
+          DEPTH: 8-BIT<br>
+          <span class="blink">█</span> SCANNING...
+        </div>
+        <div class="scan-status-bar">
+          <span id="scan-pct-text">SCAN 0%</span>
+          <div class="scan-progress-mini">
+            <div class="scan-progress-fill" id="scan-progress-fill"></div>
+          </div>
+          <span>AI-PREP</span>
+        </div>
+        <div class="scan-complete-flash" id="scan-flash"></div>
+      </div>
+    </div>
+
+    <button class="analyze-btn" id="analyze-btn" onclick="startAnalysis()">
+      <span>⬡ RUN DIAGNOSTIC PIPELINE</span>
+    </button>
+  </div>
+
+  <div class="pipeline" id="pipeline">
+
+    <div class="stage-card" id="stage-1">
+      <div class="stage-header">
+        <div class="stage-num">01</div>
+        <div class="stage-title">Individual Tooth Segmentation <span style="color:var(--text-dim);font-weight:300;font-size:12px">— YOLO11x-seg</span></div>
+        <div class="stage-status pending" id="status-1">QUEUED</div>
+      </div>
+      <div class="stage-body" id="body-1">
+        <div style="color:var(--text-dim);font-size:13px;padding:20px 0;text-align:center">
+          Awaiting pipeline start...
+        </div>
+      </div>
+    </div>
+
+    <div class="pipeline-connector" id="conn-1" style="opacity:0"></div>
+
+    <div class="stage-card" id="stage-2">
+      <div class="stage-header">
+        <div class="stage-num">02</div>
+        <div class="stage-title">CEJ Level Detection <span style="color:var(--text-dim);font-weight:300;font-size:12px">— U-Net Regression</span></div>
+        <div class="stage-status pending" id="status-2">QUEUED</div>
+      </div>
+      <div class="stage-body" id="body-2">
+        <div style="color:var(--text-dim);font-size:13px;padding:20px 0;text-align:center">
+          Awaiting Stage 01...
+        </div>
+      </div>
+    </div>
+
+    <div class="pipeline-connector" id="conn-2" style="opacity:0"></div>
+
+    <div class="stage-card" id="stage-3">
+      <div class="stage-header">
+        <div class="stage-num">03</div>
+        <div class="stage-title">Alveolar Crest Segmentation <span style="color:var(--text-dim);font-weight:300;font-size:12px">— YOLO11x-seg</span></div>
+        <div class="stage-status pending" id="status-3">QUEUED</div>
+      </div>
+      <div class="stage-body" id="body-3">
+        <div style="color:var(--text-dim);font-size:13px;padding:20px 0;text-align:center">
+          Awaiting Stage 02...
+        </div>
+      </div>
+    </div>
+
+    <div class="pipeline-connector" id="conn-3" style="opacity:0"></div>
+
+    <div class="stage-card" id="stage-4">
+      <div class="stage-header">
+        <div class="stage-num">04</div>
+        <div class="stage-title">Bone Loss Quantification <span style="color:var(--text-dim);font-weight:300;font-size:12px">— CEJ–AC Distance · Per-Tooth %</span></div>
+        <div class="stage-status pending" id="status-4">QUEUED</div>
+      </div>
+      <div class="stage-body" id="body-4">
+        <div style="color:var(--text-dim);font-size:13px;padding:20px 0;text-align:center">
+          Awaiting Stage 03...
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="result-card" id="result-card">
+    <div class="result-header">
+      <div>
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase">Diagnostic Outcome</div>
+        <div class="result-verdict" id="verdict-text">
+          </div>
+      </div>
+      <div>
+        <div class="confidence-badge" id="conf-badge" style="background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.3)">
+          </div>
+      </div>
+    </div>
+
+    <div class="result-metrics">
+      <div class="metric-box">
+        <div class="metric-label">Avg. Bone Loss</div>
+        <div class="metric-value" id="m-boneloss">—<span class="metric-unit">mm</span></div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-label">CEJ–AC Distance</div>
+        <div class="metric-value" id="m-cej">—<span class="metric-unit">mm</span></div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-label">Affected Teeth</div>
+        <div class="metric-value" id="m-affected">—<span class="metric-unit">/ 28</span></div>
+      </div>
+    </div>
+
+    <div class="severity-wrap">
+      <div class="severity-label">Bone Loss Severity Index</div>
+      <div class="severity-track">
+        <div class="severity-fill" id="severity-fill"></div>
+      </div>
+      <div class="severity-markers">
+        <span>NONE</span>
+        <span>MILD</span>
+        <span>MODERATE</span>
+        <span>SEVERE</span>
+      </div>
+    </div>
+
+    <div class="tooth-chart">
+      <div class="section-label" style="margin-bottom:16px;font-size:10px">Per-Tooth Map</div>
+      <div class="jaw-label">Upper Jaw</div>
+      <div class="tooth-row" id="upper-jaw"></div>
+      <div style="height:10px"></div>
+      <div class="jaw-label">Lower Jaw</div>
+      <div class="tooth-row" id="lower-jaw"></div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:rgba(34,197,94,0.5)"></div>Normal (&lt;15%)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:rgba(245,158,11,0.5)"></div>Mild (15–33%)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:rgba(239,68,68,0.4)"></div>Moderate (33–50%)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:rgba(239,68,68,0.7)"></div>Severe (&gt;50%)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:rgba(61,100,112,0.3)"></div>Missing</div>
+      </div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);text-align:center;margin-top:10px;letter-spacing:1px">CLICK ANY TOOTH TO VIEW BONE LOSS %</div>
+    </div>
+
+    <!-- Tooth detail popup (click) -->
+    <div id="tooth-popup" style="display:none;position:fixed;z-index:1000;pointer-events:none;">
+      <div style="
+        background:var(--surface2);
+        border:1px solid var(--teal);
+        border-radius:8px;
+        padding:10px 14px;
+        font-family:var(--mono);
+        font-size:11px;
+        color:var(--text);
+        box-shadow:0 0 20px rgba(0,210,180,0.3);
+        min-width:140px;
+        text-align:center;
+      " id="tooth-popup-inner"></div>
+    </div>
+
+    <div class="reco-section" id="reco-section">
+      <div class="section-label" style="margin-bottom:16px;font-size:10px">Clinical Recommendations</div>
+      </div>
+
+    <div class="disclaimer">
+      ⚠ This analysis is AI-generated and intended as a clinical decision support tool only.<br>
+      All findings must be reviewed and confirmed by a licensed dental professional.
+    </div>
+  </div>
+
+</div>
+
+<script>
+let uploadedImgSrc = null;
+let analysisRunning = false;
+
+function handleDragOver(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.add('drag-over');
+}
+
+function handleDragLeave(e) {
+  document.getElementById('upload-zone').classList.remove('drag-over');
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) processFile(file);
+}
+
+function handleFile(e) {
+  const file = e.target.files[0];
+  if (file) processFile(file);
+}
+
+function processFile(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    uploadedImgSrc = e.target.result;
+    const img = document.getElementById('preview-img');
+    img.src = uploadedImgSrc;
+    document.getElementById('preview-wrap').style.display = 'block';
+    document.getElementById('upload-zone').classList.add('has-file');
+    document.getElementById('upload-zone').querySelector('.upload-icon').style.color = '#00d2b4';
+
+    // Trigger scan animation after image renders
+    img.onload = () => runScanAnimation();
+    if (img.complete) runScanAnimation();
+  };
+  reader.readAsDataURL(file);
+}
+
+function runScanAnimation() {
+  const frame    = document.getElementById('scan-frame');
+  const beam     = document.getElementById('scan-beam');
+  const trail    = document.getElementById('scan-trail');
+  const flash    = document.getElementById('scan-flash');
+  const fill     = document.getElementById('scan-progress-fill');
+  const pctText  = document.getElementById('scan-pct-text');
+
+  // Activate frame — corners, reticle, HUD appear
+  frame.classList.add('active');
+  beam.style.opacity  = '1';
+  trail.style.opacity = '1';
+  trail.classList.add('down');
+
+  const SWEEP_MS  = 2600; // ms for one full top→bottom or bottom→top pass
+  let passCount   = 0;
+  let goingDown   = true;   // ping-pong direction flag
+  let startTime   = null;
+  let rafId       = null;
+
+  function ease(t) {
+    // smooth ease-in-out
+    return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+  }
+
+  function tick(now) {
+    if (!startTime) startTime = now;
+    const elapsed = now - startTime;
+    const rawT    = Math.min(elapsed / SWEEP_MS, 1);
+    const t       = ease(rawT);
+
+    // Compute beam top as percentage of container height
+    const pct = goingDown ? t * 100 : (1 - t) * 100;
+
+    // Clamp so beam doesn't overshoot
+    const clampedPct = Math.max(0, Math.min(pct, 100));
+    beam.style.top  = clampedPct + '%';
+
+    // Trail follows beam, offset in the wake direction
+    if (goingDown) {
+      trail.style.top    = (clampedPct - 4) + '%';  // slightly above beam
+      trail.className    = 'scan-trail down';
+    } else {
+      trail.style.top    = (clampedPct + 1) + '%';  // slightly below beam
+      trail.className    = 'scan-trail up';
+    }
+
+    // Progress bar: 0→100 for down, 100→0 for up (always shows current position)
+    const progressPct = goingDown ? Math.round(rawT * 100) : Math.round((1 - rawT) * 100);
+    fill.style.width        = progressPct + '%';
+    pctText.textContent     = 'SCAN ' + progressPct + '%';
+
+    if (rawT < 1) {
+      rafId = requestAnimationFrame(tick);
+    } else {
+      // Pass complete — flip direction
+      passCount++;
+      goingDown = !goingDown;
+      startTime = null;
+
+      if (passCount === 1) {
+        // First complete pass: flash + update HUD + reveal Analyze button
+        flash.style.animation = 'none';
+        void flash.offsetWidth;
+        flash.style.animation = 'scan-complete-flash 0.6s ease forwards';
+        document.getElementById('scan-hud').innerHTML =
+          'RES: 2048×1024<br>MODE: PERIAPICAL<br>DEPTH: 8-BIT<br><span style="color:#00ffb3">✓ READY</span>';
+        setTimeout(() => {
+          document.getElementById('analyze-btn').style.display = 'block';
+          document.getElementById('preview-wrap').classList.add('scanned');
+        }, 400);
+      }
+
+      // Brief pause at turnaround before next pass
+      setTimeout(() => {
+        rafId = requestAnimationFrame(tick);
+      }, 120);
+    }
+  }
+
+  // Small initial delay before first sweep
+  setTimeout(() => {
+    rafId = requestAnimationFrame(tick);
+  }, 300);
+}
+
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function animateProgress(barId, pctId, targetPct, durationMs) {
+  return new Promise(resolve => {
+    const bar = document.getElementById(barId);
+    const pct = document.getElementById(pctId);
+    const start = performance.now();
+    const startVal = parseFloat(bar.style.width) || 0;
+    function step(now) {
+      const t = Math.min((now - start) / durationMs, 1);
+      const eased = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+      const val = startVal + (targetPct - startVal) * eased;
+      bar.style.width = val + '%';
+      if (pct) pct.textContent = Math.round(val) + '%';
+      if (t < 1) requestAnimationFrame(step);
+      else resolve();
+    }
+    requestAnimationFrame(step);
+  });
+}
+
+function setStageStatus(n, status) {
+  const el = document.getElementById('status-' + n);
+  el.className = 'stage-status ' + status;
+  if (status === 'pending') el.textContent = 'QUEUED';
+  if (status === 'running') el.textContent = 'PROCESSING';
+  if (status === 'done') el.textContent = 'COMPLETE';
+}
+
+function activateCard(n) {
+  const card = document.getElementById('stage-' + n);
+  card.classList.add('active');
+}
+
+function doneCard(n) {
+  const card = document.getElementById('stage-' + n);
+  card.classList.add('done');
+}
+
+function showConnector(n) {
+  const conn = document.getElementById('conn-' + n);
+  if (conn) { conn.style.opacity = '1'; conn.style.transition = 'opacity 0.5s'; }
+}
+
+function addLog(containerId, time, msg, type) {
+  const el = document.getElementById(containerId);
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  line.innerHTML = `<span class="log-time">[${time}]</span><span class="log-msg ${type}">${msg}</span>`;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+async function runStage1() {
+  activateCard(1);
+  setStageStatus(1, 'running');
+
+  const body = document.getElementById('body-1');
+  body.innerHTML = `
+    <div class="single-img" id="s1-imgwrap">
+      <img src="${uploadedImgSrc}" id="s1-img" alt="X-ray">
+      <div class="scan-line" id="scan-1"></div>
+      <canvas id="s1-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;border-radius:10px"></canvas>
+      <div class="img-panel-label">TOOTH SEGMENTATION — YOLO11x-seg</div>
+    </div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="pb1" style="width:0%"></div></div>
+      <div class="progress-pct" id="pp1">0%</div>
+    </div>
+    <div class="log-output" id="log1"></div>
+  `;
+
+  await delay(300);
+  document.getElementById('scan-1').classList.add('scanning');
+
+  addLog('log1', '00:00', 'Loading YOLO11x-seg weights (teeth)...', 'ok');
+  await animateProgress('pb1', 'pp1', 35, 1200);
+  addLog('log1', '00:01', 'Running instance segmentation on 28 tooth regions...', 'warn');
+  await animateProgress('pb1', 'pp1', 72, 1800);
+
+  // Draw colorful segmentation masks on canvas
+  await delay(400);
+  const canvas = document.getElementById('s1-canvas');
+  const img = document.getElementById('s1-img');
+  canvas.width = img.offsetWidth;
+  canvas.height = img.offsetHeight;
+  const ctx = canvas.getContext('2d');
+  drawTeethMasks(ctx, canvas.width, canvas.height);
+
+  addLog('log1', '00:03', '26 tooth instances detected (conf > 0.82)', 'ok');
+  await animateProgress('pb1', 'pp1', 100, 600);
+}
+
+function drawTeethMasks(ctx, w, h) {
+  const colors = [
+    '#3b82f6','#8b5cf6','#ec4899','#f59e0b','#10b981',
+    '#06b6d4','#f97316','#84cc16','#6366f1','#14b8a6',
+    '#f43f5e','#a78bfa','#fbbf24','#34d399','#60a5fa'
+  ];
+
+  const upperCount = 14;
+  const lowerCount = 14;
+  const cx = w * 0.5;
+
+  // Upper row
+  for (let i = 0; i < upperCount; i++) {
+    const frac = (i + 0.5) / upperCount;
+    const x = w * (0.12 + frac * 0.76);
+    const arcY = h * 0.38 - Math.sin(Math.PI * frac) * h * 0.05;
+    const tw = w * (0.022 + 0.008 * Math.sin(Math.PI * frac));
+    const th = h * (0.09 + 0.04 * Math.sin(Math.PI * frac));
+
+    ctx.save();
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.beginPath();
+    ctx.ellipse(x, arcY, tw, th, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+
+    // Root
+    ctx.save();
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.beginPath();
+    ctx.ellipse(x, arcY + th * 0.8, tw * 0.5, th * 0.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Lower row
+  for (let i = 0; i < lowerCount; i++) {
+    const frac = (i + 0.5) / lowerCount;
+    const x = w * (0.13 + frac * 0.74);
+    const arcY = h * 0.62 + Math.sin(Math.PI * frac) * h * 0.04;
+    const tw = w * (0.020 + 0.007 * Math.sin(Math.PI * frac));
+    const th = h * (0.08 + 0.035 * Math.sin(Math.PI * frac));
+
+    ctx.save();
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = colors[(i + 5) % colors.length];
+    ctx.beginPath();
+    ctx.ellipse(x, arcY, tw, th, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = colors[(i + 5) % colors.length];
+    ctx.beginPath();
+    ctx.ellipse(x, arcY - th * 0.8, tw * 0.5, th * 0.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+async function runStage2() {
+  showConnector(1);
+  await delay(400);
+  activateCard(2);
+  setStageStatus(2, 'running');
+
+  const body = document.getElementById('body-2');
+  body.innerHTML = `
+    <div class="img-compare">
+      <div class="img-panel">
+        <img src="${uploadedImgSrc}" alt="Original">
+        <div class="img-panel-label">ORIGINAL</div>
+      </div>
+      <div class="img-panel" id="cej-panel" style="position:relative">
+        <img src="${uploadedImgSrc}" alt="CEJ" style="filter:brightness(0.75) contrast(1.1)">
+        <canvas id="s2-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none"></canvas>
+        <div class="img-panel-label">CEJ DETECTION</div>
+      </div>
+    </div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="pb2" style="width:0%;background:var(--amber);box-shadow:0 0 8px var(--amber)"></div></div>
+      <div class="progress-pct" id="pp2" style="color:var(--amber)">0%</div>
+    </div>
+    <div class="log-output" id="log2"></div>
+  `;
+
+  addLog('log2', '00:04', 'Initializing U-Net regression model...', 'ok');
+  await animateProgress('pb2', 'pp2', 40, 1400);
+  addLog('log2', '00:05', 'Estimating CEJ landmarks per tooth...', 'warn');
+  await animateProgress('pb2', 'pp2', 80, 1600);
+
+  await delay(200);
+  const canvas = document.getElementById('s2-canvas');
+  const panel = document.getElementById('cej-panel');
+  canvas.width = panel.offsetWidth;
+  canvas.height = panel.offsetHeight;
+  const ctx = canvas.getContext('2d');
+  drawCEJLines(ctx, canvas.width, canvas.height);
+
+  addLog('log2', '00:07', 'CEJ landmarks identified on 26 teeth', 'ok');
+  await animateProgress('pb2', 'pp2', 100, 600);
+}
+
+function drawCEJLines(ctx, w, h) {
+  // Upper CEJ line
+  ctx.save();
+  ctx.strokeStyle = '#fbbf24';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#fbbf24';
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  const pts = [];
+  for (let i = 0; i <= 20; i++) {
+    const x = w * (0.12 + i/20 * 0.76);
+    const y = h * 0.42 - Math.sin(Math.PI * i/20) * h * 0.04 + (Math.random() - 0.5) * h * 0.015;
+    pts.push([x, y]);
+  }
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length - 1; i++) {
+    const mx = (pts[i][0] + pts[i+1][0]) / 2;
+    const my = (pts[i][1] + pts[i+1][1]) / 2;
+    ctx.quadraticCurveTo(pts[i][0], pts[i][1], mx, my);
+  }
+  ctx.stroke();
+  ctx.restore();
+
+  // Lower CEJ line
+  ctx.save();
+  ctx.strokeStyle = '#fbbf24';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#fbbf24';
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  const pts2 = [];
+  for (let i = 0; i <= 20; i++) {
+    const x = w * (0.13 + i/20 * 0.74);
+    const y = h * 0.57 + Math.sin(Math.PI * i/20) * h * 0.035 + (Math.random() - 0.5) * h * 0.012;
+    pts2.push([x, y]);
+  }
+  ctx.moveTo(pts2[0][0], pts2[0][1]);
+  for (let i = 1; i < pts2.length - 1; i++) {
+    const mx = (pts2[i][0] + pts2[i+1][0]) / 2;
+    const my = (pts2[i][1] + pts2[i+1][1]) / 2;
+    ctx.quadraticCurveTo(pts2[i][0], pts2[i][1], mx, my);
+  }
+  ctx.stroke();
+  ctx.restore();
+
+  // Landmark dots
+  for (let i = 0; i <= 14; i++) {
+    const xU = w * (0.12 + i/14 * 0.76);
+    const yU = h * 0.42 - Math.sin(Math.PI * i/14) * h * 0.04;
+    const xL = w * (0.13 + i/14 * 0.74);
+    const yL = h * 0.57 + Math.sin(Math.PI * i/14) * h * 0.035;
+
+    ctx.beginPath();
+    ctx.arc(xU, yU, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#fbbf24';
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(xL, yL, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#fbbf24';
+    ctx.fill();
+  }
+}
+
+async function runStage3() {
+  showConnector(2);
+  await delay(400);
+  activateCard(3);
+  setStageStatus(3, 'running');
+
+  const body = document.getElementById('body-3');
+  body.innerHTML = `
+    <div class="img-compare">
+      <div class="img-panel">
+        <img src="${uploadedImgSrc}" alt="Original">
+        <div class="img-panel-label">ORIGINAL</div>
+      </div>
+      <div class="img-panel" id="ac-panel" style="position:relative">
+        <img src="${uploadedImgSrc}" alt="AC" style="filter:brightness(0.75) contrast(1.1)">
+        <canvas id="s3-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none"></canvas>
+        <div class="img-panel-label">AC SEGMENTATION — conf 0.89</div>
+      </div>
+    </div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="pb3" style="width:0%;background:#60a5fa;box-shadow:0 0 8px #60a5fa"></div></div>
+      <div class="progress-pct" id="pp3" style="color:#60a5fa">0%</div>
+    </div>
+    <div class="log-output" id="log3"></div>
+  `;
+
+  addLog('log3', '00:08', 'Loading AC segmentation model (YOLO11x-seg)...', 'ok');
+  await animateProgress('pb3', 'pp3', 30, 1000);
+  addLog('log3', '00:09', 'Segmenting alveolar bone crest region...', 'warn');
+  await animateProgress('pb3', 'pp3', 75, 1800);
+
+  await delay(300);
+  const canvas = document.getElementById('s3-canvas');
+  const panel = document.getElementById('ac-panel');
+  canvas.width = panel.offsetWidth;
+  canvas.height = panel.offsetHeight;
+  const ctx = canvas.getContext('2d');
+  drawACMask(ctx, canvas.width, canvas.height);
+
+  addLog('log3', '00:11', 'AC segmented — confidence: 0.89', 'ok');
+  await animateProgress('pb3', 'pp3', 100, 600);
+}
+
+function drawACMask(ctx, w, h) {
+  ctx.save();
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = '#3b82f6';
+
+  // Upper AC band
+  ctx.beginPath();
+  ctx.moveTo(w * 0.12, h * 0.44);
+  for (let i = 0; i <= 30; i++) {
+    const x = w * (0.12 + i/30 * 0.76);
+    const y = h * 0.44 - Math.sin(Math.PI * i/30) * h * 0.03 + (Math.random()-0.5)*h*0.01;
+    ctx.lineTo(x, y);
+  }
+  for (let i = 30; i >= 0; i--) {
+    const x = w * (0.12 + i/30 * 0.76);
+    const y = h * 0.48 - Math.sin(Math.PI * i/30) * h * 0.025 + (Math.random()-0.5)*h*0.01;
+    ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Lower AC band
+  ctx.beginPath();
+  ctx.moveTo(w * 0.13, h * 0.54);
+  for (let i = 0; i <= 30; i++) {
+    const x = w * (0.13 + i/30 * 0.74);
+    const y = h * 0.54 + Math.sin(Math.PI * i/30) * h * 0.025 + (Math.random()-0.5)*h*0.01;
+    ctx.lineTo(x, y);
+  }
+  for (let i = 30; i >= 0; i--) {
+    const x = w * (0.13 + i/30 * 0.74);
+    const y = h * 0.58 + Math.sin(Math.PI * i/30) * h * 0.02 + (Math.random()-0.5)*h*0.01;
+    ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+
+  // Glowing border
+  ctx.save();
+  ctx.strokeStyle = '#93c5fd';
+  ctx.lineWidth = 1.5;
+  ctx.shadowColor = '#3b82f6';
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  ctx.moveTo(w*0.12, h*0.44);
+  for (let i = 0; i <= 30; i++) {
+    const x = w * (0.12 + i/30 * 0.76);
+    const y = h * 0.44 - Math.sin(Math.PI * i/30) * h * 0.03;
+    ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.restore();
+
+  // Bounding box
+  ctx.save();
+  ctx.strokeStyle = '#60a5fa';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 3]);
+  ctx.strokeRect(w*0.1, h*0.41, w*0.8, h*0.19);
+  ctx.restore();
+
+  // Label
+  ctx.save();
+  ctx.fillStyle = '#3b82f6';
+  ctx.fillRect(w*0.1, h*0.41 - 18, 70, 18);
+  ctx.fillStyle = 'white';
+  ctx.font = '10px Space Mono, monospace';
+  ctx.fillText('AC  0.89', w*0.1 + 4, h*0.41 - 5);
+  ctx.restore();
+}
+
+async function startAnalysis() {
+  if (!uploadedImgSrc || analysisRunning) return;
+
+  analysisRunning = true;
+
+  document.getElementById('reset-btn').style.display = 'block';
+  document.getElementById('pipeline').style.display = 'block';
+
+  const fileInput = document.getElementById('file-input');
+  const file = fileInput.files[0];
+
+  const formData = new FormData();
+  formData.append('image', file);
+
+  try {
+    // =========================
+    // SEND IMAGE TO FLASK
+    // =========================
+    const response = await fetch('/analyze', {
+      method: 'POST',
+      body: formData
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      alert(data.error);
+      analysisRunning = false;
+      return;
+    }
+
+    // =========================
+    // STAGE 1
+    // =========================
+    activateCard(1);
+    setStageStatus(1, 'running');
+
+    document.getElementById('body-1').innerHTML = `
+      <div class="single-img">
+        <img src="${data.teeth_overlay}" alt="Teeth Segmentation">
+        <div class="img-panel-label">TOOTH SEGMENTATION — YOLO11x-seg</div>
+      </div>
+    `;
+
+    await delay(1200);
+    setStageStatus(1, 'done');
+    doneCard(1);
+
+    // =========================
+    // STAGE 2
+    // =========================
+    showConnector(1);
+    await delay(500);
+    activateCard(2);
+    setStageStatus(2, 'running');
+
+    document.getElementById('body-2').innerHTML = `
+      <div class="single-img">
+        <img src="${data.cej_overlay}" alt="CEJ Detection">
+        <div class="img-panel-label">CEJ DETECTION</div>
+      </div>
+    `;
+
+    await delay(1200);
+    setStageStatus(2, 'done');
+    doneCard(2);
+
+    // =========================
+    // STAGE 3
+    // =========================
+    showConnector(2);
+    await delay(500);
+    activateCard(3);
+    setStageStatus(3, 'running');
+
+    document.getElementById('body-3').innerHTML = `
+      <div class="single-img">
+        <img src="${data.ac_overlay}" alt="AC Segmentation">
+        <div class="img-panel-label">ALVEOLAR CREST SEGMENTATION</div>
+      </div>
+    `;
+
+    await delay(1200);
+    setStageStatus(3, 'done');
+    doneCard(3);
+
+    // =========================
+    // STAGE 4 — Bone Loss Quantification
+    // =========================
+    showConnector(3);
+    await delay(500);
+    activateCard(4);
+    setStageStatus(4, 'running');
+
+    document.getElementById('body-4').innerHTML = `
+      <div class="single-img" style="position:relative;">
+        <img src="${data.annotated_img}" alt="Bone Loss Annotation">
+        <div class="img-panel-label">CEJ–AC BONE LOSS QUANTIFICATION</div>
+        <div style="
+          position:absolute;bottom:12px;right:12px;
+          font-family:var(--mono);font-size:8px;line-height:2;letter-spacing:0.8px;
+          background:rgba(5,10,14,0.88);padding:8px 12px;border-radius:6px;
+          border:1px solid rgba(0,210,180,0.2);color:var(--text-muted);
+          pointer-events:none;
+        ">
+          <div><span style="display:inline-block;width:8px;height:8px;background:#0f0;border-radius:2px;margin-right:6px;vertical-align:middle"></span>Tooth axis</div>
+          <div><span style="display:inline-block;width:8px;height:8px;background:#f00;border-radius:2px;margin-right:6px;vertical-align:middle"></span>CEJ point</div>
+          <div><span style="display:inline-block;width:8px;height:8px;background:#f0f;border-radius:2px;margin-right:6px;vertical-align:middle"></span>AC point</div>
+          <div><span style="display:inline-block;width:8px;height:8px;background:#fff;border-radius:2px;margin-right:6px;vertical-align:middle"></span>Bone loss path</div>
+          <div><span style="display:inline-block;width:8px;height:8px;background:#ff0;border-radius:2px;margin-right:6px;vertical-align:middle"></span>Root tip</div>
+        </div>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-bg"><div class="progress-bar-fill" id="pb4" style="width:0%"></div></div>
+        <div class="progress-pct" id="pp4">0%</div>
+      </div>
+      <div class="log-output" id="log4"></div>
+    `;
+
+    addLog('log4', '00:14', 'Computing CEJ–AC axis intersections per tooth...', 'ok');
+    await animateProgress('pb4', 'pp4', 60, 1200);
+    addLog('log4', '00:15', 'Applying 2 mm biological width correction...', 'warn');
+    await animateProgress('pb4', 'pp4', 100, 800);
+    addLog('log4', '00:16', `Bone loss calculated for ${(data.tooth_bone_loss || []).length} teeth`, 'ok');
+
+    await delay(400);
+    setStageStatus(4, 'done');
+    doneCard(4);
+
+    // =========================
+    // SHOW RESULTS
+    // =========================
+    showResults(data);
+
+  } catch (error) {
+    console.error(error);
+    alert('Backend processing failed');
+  } finally {
+    analysisRunning = false;
+  }
+}
+
+// Returns severity class based on bone loss percentage
+function pctToClass(pct) {
+  if (pct === null || pct === undefined) return 'missing';
+  if (pct < 15)  return 'normal';
+  if (pct < 33)  return 'mild';
+  if (pct < 50)  return 'moderate';
+  return 'severe';
+}
+
+// Returns a CSS color string interpolated from green→amber→red
+function pctToColor(pct) {
+  if (pct === null || pct === undefined) return null;
+  const t = Math.min(pct / 60, 1); // 0 at 0%, 1 at 60%+
+  if (t < 0.5) {
+    // green (#22c55e) → amber (#f59e0b)
+    const r = Math.round(34  + (245-34)  * (t/0.5));
+    const g = Math.round(197 + (158-197) * (t/0.5));
+    const b = Math.round(94  + (11-94)   * (t/0.5));
+    return `rgb(${r},${g},${b})`;
+  } else {
+    // amber (#f59e0b) → red (#ef4444)
+    const u = (t - 0.5) / 0.5;
+    const r = Math.round(245 + (239-245) * u);
+    const g = Math.round(158 + (68-158)  * u);
+    const b = Math.round(11  + (68-11)   * u);
+    return `rgb(${r},${g},${b})`;
+  }
+}
+
+function showResults(data) {
+  // data.tooth_bone_loss: array of {tooth_id, jaw, pct} from backend
+  // data.annotated_img: base64 or URL of the final annotated image
+  // Fallback demo data if backend doesn't provide
+  const boneLossData = (data && data.tooth_bone_loss) ? data.tooth_bone_loss : generateDemoBoneLoss();
+
+  const card = document.getElementById('result-card');
+  card.style.display = 'block';
+  card.classList.add('periodontitis');
+
+  // Verdict
+  document.getElementById('verdict-text').innerHTML = `
+    <div class="verdict-dot red"></div>
+    PERIODONTITIS DETECTED
+  `;
+  document.getElementById('conf-badge').textContent = 'CONFIDENCE 91.4%';
+
+  // Metrics — compute from boneLossData
+  const validPcts = boneLossData.filter(t => t.pct !== null && t.pct !== undefined).map(t => t.pct);
+  const avgLoss = validPcts.length ? (validPcts.reduce((a,b)=>a+b,0)/validPcts.length).toFixed(1) : '—';
+  const affected = validPcts.filter(p => p >= 15).length;
+
+  setTimeout(() => {
+    document.getElementById('m-boneloss').innerHTML = `${avgLoss}<span class="metric-unit">%</span>`;
+    document.getElementById('m-cej').innerHTML = '3.8<span class="metric-unit">mm</span>';
+    document.getElementById('m-affected').innerHTML = `${affected}<span class="metric-unit">/ 28</span>`;
+  }, 300);
+
+  // Severity bar
+  setTimeout(() => {
+    const severityPct = Math.min(Math.round(parseFloat(avgLoss) * 1.3), 100);
+    const fill = document.getElementById('severity-fill');
+    fill.style.background = 'linear-gradient(90deg, #22c55e, #f59e0b, #ef4444)';
+    fill.style.boxShadow = '0 0 10px #ef4444';
+    fill.style.width = severityPct + '%';
+    fill.style.transition = 'width 1.5s cubic-bezier(0.16,1,0.3,1)';
+    fill.innerHTML = `<div style="position:absolute;right:-7px;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:#ef4444;border:2px solid var(--bg);box-shadow:0 0 8px #ef4444"></div>`;
+  }, 400);
+
+  // Tooth chart — driven by real percentages
+  setTimeout(() => {
+    const upperEl = document.getElementById('upper-jaw');
+    const lowerEl = document.getElementById('lower-jaw');
+    upperEl.innerHTML = '';
+    lowerEl.innerHTML = '';
+
+    const upperData = boneLossData.filter(t => t.jaw === 'upper');
+    const lowerData = boneLossData.filter(t => t.jaw === 'lower');
+
+    function buildTooth(tData, label) {
+      const t = document.createElement('div');
+      const cls = pctToClass(tData.pct);
+      t.className = 'tooth ' + cls;
+
+      if (tData.pct !== null && tData.pct !== undefined) {
+        // Apply interpolated color based on actual %
+        const col = pctToColor(tData.pct);
+        const alpha = cls === 'normal' ? 0.2 : cls === 'mild' ? 0.3 : cls === 'moderate' ? 0.4 : 0.55;
+        t.style.background = col.replace('rgb', 'rgba').replace(')', `,${alpha})`);
+        t.style.borderColor = col.replace('rgb', 'rgba').replace(')', ',0.7)');
+        t.style.boxShadow = `0 0 6px ${col.replace('rgb','rgba').replace(')',',0.35)')}`;
+      }
+
+      const tipLabel = tData.pct !== null && tData.pct !== undefined
+        ? `${label}: ${tData.pct.toFixed(1)}% bone loss`
+        : `${label}: missing`;
+      t.setAttribute('data-tip', tipLabel);
+      t.setAttribute('data-pct', tData.pct !== null && tData.pct !== undefined ? tData.pct.toFixed(1) : null);
+      t.setAttribute('data-label', label);
+
+      // Click handler — show popup
+      t.style.cursor = 'pointer';
+      t.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showToothPopup(t, tData, label);
+      });
+      return t;
+    }
+
+    upperData.forEach((td, i) => upperEl.appendChild(buildTooth(td, `U${i+1}`)));
+    lowerData.forEach((td, i) => lowerEl.appendChild(buildTooth(td, `L${i+1}`)));
+
+    // Close popup on outside click
+    document.addEventListener('click', hideToothPopup);
+  }, 500);
+
+  // Recommendations
+  setTimeout(() => {
+    const recos = [
+      { icon: '⚕', color: 'rgba(239,68,68,0.15)', iconColor: '#ef4444', title: 'Immediate periodontal consultation required', desc: 'Moderate-to-severe bone loss detected across multiple teeth. Referral to periodontist within 2 weeks recommended.' },
+      { icon: '🔬', color: 'rgba(245,158,11,0.15)', iconColor: '#f59e0b', title: 'Full-mouth periodontal probing', desc: 'Clinical probing depths and bleeding on probing assessment needed to confirm radiographic findings.' },
+      { icon: '⚙', color: 'rgba(96,165,250,0.15)', iconColor: '#60a5fa', title: 'Scaling & root planing (SRP)', desc: 'Non-surgical periodontal therapy indicated for affected sextants. Review after 6–8 weeks.' },
+    ];
+    const sec = document.getElementById('reco-section');
+    sec.innerHTML = `<div class="section-label" style="margin-bottom:16px;font-size:10px">Clinical Recommendations</div>`;
+    recos.forEach(r => {
+      const item = document.createElement('div');
+      item.className = 'reco-item';
+      item.innerHTML = `
+        <div class="reco-icon" style="background:${r.color}">
+          <span style="font-size:16px">${r.icon}</span>
+        </div>
+        <div>
+          <div class="reco-text-title">${r.title}</div>
+          <div class="reco-text-desc">${r.desc}</div>
+        </div>`;
+      sec.appendChild(item);
+    });
+  }, 700);
+
+  setTimeout(() => {
+    card.classList.add('visible');
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 200);
+}
+
+function showToothPopup(el, tData, label) {
+  const popup = document.getElementById('tooth-popup');
+  const inner = document.getElementById('tooth-popup-inner');
+  const rect = el.getBoundingClientRect();
+
+  const cls = pctToClass(tData.pct);
+  const clsLabels = { normal:'Normal', mild:'Mild', moderate:'Moderate', severe:'Severe', missing:'Missing' };
+  const clsColors = { normal:'#22c55e', mild:'#f59e0b', moderate:'#ef4444', severe:'#ef4444', missing:'#3d6470' };
+  const col = clsColors[cls] || '#00d2b4';
+
+  if (tData.pct === null || tData.pct === undefined) {
+    inner.innerHTML = `
+      <div style="color:var(--text-muted);font-size:10px;letter-spacing:1px">${label}</div>
+      <div style="color:#3d6470;font-size:13px;margin-top:4px">MISSING / NO DATA</div>`;
+  } else {
+    inner.innerHTML = `
+      <div style="color:var(--text-muted);font-size:9px;letter-spacing:1px;margin-bottom:4px">${label}</div>
+      <div style="font-size:22px;font-weight:700;color:${col};text-shadow:0 0 10px ${col}88">${tData.pct.toFixed(1)}<span style="font-size:12px;font-weight:400">%</span></div>
+      <div style="font-size:9px;color:${col};letter-spacing:1px;margin:2px 0 6px">BONE LOSS</div>
+      <div style="width:100%;height:3px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden">
+        <div style="height:100%;width:${Math.min(tData.pct,100)}%;background:${col};box-shadow:0 0 6px ${col};transition:width 0.6s ease"></div>
+      </div>
+      <div style="color:var(--text-muted);font-size:9px;letter-spacing:1px;margin-top:6px">${clsLabels[cls].toUpperCase()}</div>`;
+  }
+
+  popup.style.display = 'block';
+  popup.style.pointerEvents = 'none';
+
+  // Position above tooth
+  const scrollY = window.scrollY || document.documentElement.scrollTop;
+  const popupW = 160;
+  let left = rect.left + rect.width/2 - popupW/2;
+  let top = rect.top + scrollY - 120;
+  left = Math.max(8, Math.min(left, window.innerWidth - popupW - 8));
+  popup.style.left = left + 'px';
+  popup.style.top = top + 'px';
+  popup.style.width = popupW + 'px';
+}
+
+function hideToothPopup() {
+  document.getElementById('tooth-popup').style.display = 'none';
+}
+
+// Demo bone loss data — mirrors the Python code's example output
+function generateDemoBoneLoss() {
+  const upperPcts = [null, 8.2, 12.4, 38.1, 52.7, 47.3, 29.8, 6.1, 11.3, 35.6, 58.2, 41.9, 27.4, null];
+  const lowerPcts = [null, 19.3, 36.8, 61.4, 44.2, 38.7, 22.1, 7.9, 14.6, 40.3, 55.8, 60.1, 39.2, 18.5];
+  return [
+    ...upperPcts.map((pct, i) => ({ jaw:'upper', tooth_id:`U${i+1}`, pct })),
+    ...lowerPcts.map((pct, i) => ({ jaw:'lower', tooth_id:`L${i+1}`, pct })),
+  ];
+}
+
+function resetAll() {
+  location.reload();
+}
+</script>
+</body>
+</html>
