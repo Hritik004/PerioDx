@@ -499,6 +499,9 @@
 
   .result-card.periodontitis { border-color: rgba(239,68,68,0.4); }
   .result-card.healthy { border-color: rgba(34,197,94,0.4); }
+  .result-card.periodontitis-mild { border-color: rgba(245,158,11,0.35); }
+  .result-card.periodontitis-moderate { border-color: rgba(249,115,22,0.35); }
+  .result-card.periodontitis-severe { border-color: rgba(239,68,68,0.5); }
 
   .result-header {
     padding: 24px 28px;
@@ -531,6 +534,24 @@
 
   .verdict-dot.red { background: var(--red); box-shadow: 0 0 12px var(--red); }
   .verdict-dot.green { background: var(--green); box-shadow: 0 0 12px var(--green); }
+  .verdict-dot.amber { background: #f59e0b; box-shadow: 0 0 12px #f59e0b; }
+  .verdict-dot.orange { background: #f97316; box-shadow: 0 0 12px #f97316; }
+
+  /* Verdict legend (header) */
+  .verdict-legend {
+    display:flex;
+    gap:12px;
+    align-items:center;
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--text-dim);
+  }
+  .verdict-legend .legend-entry { display:flex; align-items:center; gap:6px; }
+  .verdict-legend .legend-dot-mini { width:10px; height:10px; border-radius:50%; display:inline-block; }
+  .verdict-legend .legend-dot-mini.green { background:var(--green); }
+  .verdict-legend .legend-dot-mini.amber { background:#f59e0b; }
+  .verdict-legend .legend-dot-mini.orange { background:#f97316; }
+  .verdict-legend .legend-dot-mini.red { background:var(--red); }
 
   .confidence-badge {
     font-family: var(--mono);
@@ -1245,9 +1266,14 @@
         <div class="result-verdict" id="verdict-text">
           </div>
       </div>
-      <div>
-        <div class="confidence-badge" id="conf-badge" style="background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.3)">
-          </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+        <div class="confidence-badge" id="conf-badge" style="background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.3)"></div>
+        <div class="verdict-legend" id="verdict-legend" aria-hidden="true">
+          <div class="legend-entry"><span class="legend-dot-mini green"></span> None</div>
+          <div class="legend-entry"><span class="legend-dot-mini amber"></span> Mild</div>
+          <div class="legend-entry"><span class="legend-dot-mini orange"></span> Moderate</div>
+          <div class="legend-entry"><span class="legend-dot-mini red"></span> Severe</div>
+        </div>
       </div>
     </div>
 
@@ -1293,7 +1319,7 @@
         <div class="legend-item"><div class="legend-dot" style="background:rgba(239,68,68,0.7)"></div>Severe (&gt;50%)</div>
         <div class="legend-item"><div class="legend-dot" style="background:rgba(61,100,112,0.3)"></div>Missing</div>
       </div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);text-align:center;margin-top:10px;letter-spacing:1px">CLICK ANY TOOTH TO VIEW BONE LOSS %</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);text-align:center;margin-top:10px;letter-spacing:1px">HOVER OR CLICK ANY TOOTH TO VIEW BONE LOSS %</div>
     </div>
 
     <!-- Tooth detail popup (click) -->
@@ -2016,25 +2042,62 @@ function showResults(data) {
 
   const card = document.getElementById('result-card');
   card.style.display = 'block';
-  card.classList.add('periodontitis');
-
-  // Verdict
-  document.getElementById('verdict-text').innerHTML = `
-    <div class="verdict-dot red"></div>
-    PERIODONTITIS DETECTED
-  `;
-  document.getElementById('conf-badge').textContent = 'CONFIDENCE 91.4%';
 
   // Metrics — compute from boneLossData
-  const validPcts = boneLossData.filter(t => t.pct !== null && t.pct !== undefined).map(t => t.pct);
-  const avgLoss = validPcts.length ? (validPcts.reduce((a,b)=>a+b,0)/validPcts.length).toFixed(1) : '—';
-  const affected = validPcts.filter(p => p >= 15).length;
+  const allPcts = boneLossData.map(t => t.pct !== null && t.pct !== undefined ? t.pct : 0);
+  const validPcts = allPcts.filter(p => p !== null && p !== undefined);
+  const avgLoss = boneLossData.length ? (allPcts.reduce((a,b)=>a+b,0)/boneLossData.length).toFixed(1) : '—';
+  const affected = validPcts.filter(p => p > 0).length;
 
+  const totalTeeth = boneLossData.length || 0;
   setTimeout(() => {
     document.getElementById('m-boneloss').innerHTML = `${avgLoss}<span class="metric-unit">%</span>`;
     document.getElementById('m-cej').innerHTML = '3.8<span class="metric-unit">mm</span>';
-    document.getElementById('m-affected').innerHTML = `${affected}<span class="metric-unit">/ 28</span>`;
+    document.getElementById('m-affected').innerHTML = `${affected}<span class="metric-unit">/ ${totalTeeth}</span>`;
   }, 300);
+
+  // Verdict & severity based on affected teeth
+  (function updateVerdict(){
+    const verdictEl = document.getElementById('verdict-text');
+    const confBadge = document.getElementById('conf-badge');
+    // clear previous classes
+    card.classList.remove('periodontitis','periodontitis-mild','periodontitis-moderate','periodontitis-severe','healthy');
+
+    if (affected === 0) {
+      card.classList.add('healthy');
+      verdictEl.innerHTML = `\n        <div class="verdict-dot green"></div>\n        NO PERIODONTITIS\n      `;
+      confBadge.textContent = 'CONFIDENCE 91.4%';
+      confBadge.style.background = 'rgba(34,197,94,0.12)';
+      confBadge.style.color = '#16a34a';
+      confBadge.style.border = '1px solid rgba(34,197,94,0.25)';
+      return;
+    }
+
+    // Determine severity by proportion of affected teeth
+    const frac = totalTeeth ? (affected / totalTeeth) : 0;
+    let severity = 'severe';
+    if (frac <= 0.15) severity = 'mild';
+    else if (frac <= 0.35) severity = 'moderate';
+
+    card.classList.add(`periodontitis-${severity}`);
+    const dotClass = severity === 'mild' ? 'amber' : severity === 'moderate' ? 'orange' : 'red';
+    verdictEl.innerHTML = `\n      <div class="verdict-dot ${dotClass}"></div>\n      PERIODONTITIS DETECTED <span style="font-size:12px;color:var(--text-dim);margin-left:8px">${severity.toUpperCase()}</span>\n    `;
+    confBadge.textContent = 'CONFIDENCE 91.4%';
+    // set conf-badge tint to match severity
+    if (severity === 'mild') {
+      confBadge.style.background = 'rgba(245,158,11,0.12)';
+      confBadge.style.color = '#b45309';
+      confBadge.style.border = '1px solid rgba(245,158,11,0.2)';
+    } else if (severity === 'moderate') {
+      confBadge.style.background = 'rgba(249,115,22,0.12)';
+      confBadge.style.color = '#ea580c';
+      confBadge.style.border = '1px solid rgba(249,115,22,0.2)';
+    } else {
+      confBadge.style.background = 'rgba(239,68,68,0.12)';
+      confBadge.style.color = '#ef4444';
+      confBadge.style.border = '1px solid rgba(239,68,68,0.3)';
+    }
+  })();
 
   // Severity bar
   setTimeout(() => {
@@ -2080,6 +2143,8 @@ function showResults(data) {
 
       // Click handler — show popup
       t.style.cursor = 'pointer';
+      t.addEventListener('mouseenter', () => showToothPopup(t, tData, label));
+      t.addEventListener('mouseleave', () => hideToothPopup());
       t.addEventListener('click', (e) => {
         e.stopPropagation();
         showToothPopup(t, tData, label);
