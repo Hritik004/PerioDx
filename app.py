@@ -61,11 +61,12 @@ os.makedirs(REPORTS_DIR, exist_ok=True)
 app = Flask(__name__)
 
 
-
-
-
-
 app.secret_key = APP_SECRET_KEY
+
+# Sessions survive browser restarts instead of expiring the moment the
+# browser session ends. session.permanent = True (set at login) is what
+# makes Flask actually apply this lifetime to the cookie.
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 
 # ---------------------------------------------------------------------------
 # DATABASES
@@ -422,6 +423,52 @@ COMPLEXITY_FACTOR_KEYS = (
     "bite_collapse",            # drifting, flaring, secondary occlusal trauma
 )
 
+# Human-readable labels for the complexity factors, used when composing
+# the saved report's notes text (see build_report_notes below).
+CLINICAL_FINDING_LABELS = {
+    "probing_depth_6mm_plus": "Probing depth \u22656mm at one or more sites",
+    "vertical_bone_defect_3mm_plus": "Vertical bone defect \u22653mm",
+    "furcation_class_2_3": "Furcation involvement (Class II/III)",
+    "fewer_than_20_teeth": "Fewer than 20 remaining teeth",
+    "bite_collapse": "Bite collapse / drifting / flaring",
+}
+
+# Cap on the free-text "notes" a clinician can type into the save modal,
+# to keep the Report.notes TEXT column from being handed something
+# unbounded.
+CUSTOM_NOTES_MAX_LEN = 2000
+
+
+def build_report_notes(complexity_factors, custom_notes):
+    """
+    Compose the Report.notes text from what the clinician actually chose
+    at save time — the ticked complexity-factor checkboxes and any
+    free-text they typed — instead of a fixed boilerplate sentence.
+
+    complexity_factors: dict of COMPLEXITY_FACTOR_KEYS -> bool
+    custom_notes: str, already trimmed/length-capped by the caller
+
+    Returns a plain-text string suitable for Report.notes.
+    """
+    selected = [
+        CLINICAL_FINDING_LABELS[key]
+        for key in COMPLEXITY_FACTOR_KEYS
+        if complexity_factors.get(key)
+    ]
+
+    parts = []
+    if selected:
+        parts.append(
+            "Clinical findings noted at save time: " + ", ".join(selected) + "."
+        )
+    else:
+        parts.append("No clinical findings were noted at save time.")
+
+    if custom_notes:
+        parts.append("Clinician notes: " + custom_notes)
+
+    return " ".join(parts)
+
 
 def compute_periodontitis_stage(teeth, complexity_factors=None):
     """
@@ -601,7 +648,10 @@ def login():
 
     session.pop('_flashes', None)
 
-    # Create login session
+    # Create login session. session.permanent = True + the
+    # PERMANENT_SESSION_LIFETIME set above means this cookie survives
+    # browser restarts instead of expiring as soon as the browser closes.
+    session.permanent = True
     session['user_id'] = user.id
     session['email'] = user.email
     session['name'] = user.first_name
@@ -673,7 +723,9 @@ def google_login():
 
         session.pop('_flashes', None)
 
-        # 4. Create Session
+        # 4. Create Session (permanent so it survives browser restarts —
+        # see PERMANENT_SESSION_LIFETIME above).
+        session.permanent = True
         session['user_id'] = user.id
         session['email'] = user.email
         session['name'] = user.first_name
@@ -955,6 +1007,12 @@ def save_report():
         "first_name": "...", "last_name": "...",
         "phone": "...", "diabetic": true/false,
 
+        # optional — free text the clinician typed at save time. Combined
+        # with the complexity factors below into Report.notes via
+        # build_report_notes(). Trimmed and capped at
+        # CUSTOM_NOTES_MAX_LEN characters.
+        "notes": "...",
+
         # optional — clinician-entered complexity factors that can escalate
         # Stage III to Stage IV (see COMPLEXITY_FACTOR_KEYS). Any subset of:
         "complexity_factors": {
@@ -1039,27 +1097,22 @@ def save_report():
                 db.session.add(patient)
                 db.session.flush()  # assigns patient.id without committing yet
 
-            # ---- Compute stage + create the Report row ----------------------
+            # ---- Compute stage + build notes from what was actually
+            #      selected/typed at save time -------------------------------
             complexity_factors = data.get('complexity_factors') or {}
             if not isinstance(complexity_factors, dict):
                 complexity_factors = {}
             stage = compute_periodontitis_stage(teeth, complexity_factors)
 
+            custom_notes = (data.get('notes') or '').strip()
+            if len(custom_notes) > CUSTOM_NOTES_MAX_LEN:
+                custom_notes = custom_notes[:CUSTOM_NOTES_MAX_LEN]
+
             report_row = Report(
                 patient_id=patient.id,
                 created_by_user_id=session['user_id'],
                 periodontitis_stage=stage,
-                notes=(
-                    f"Auto-saved from diagnostic scan (cache id {report_id}). "
-                    "Stage estimated from radiographic bone loss % and missing-"
-                    "tooth count only — no clinical attachment loss (CAL) or "
-                    "probing data was available"
-                    + (
-                        "; clinician-entered complexity factors were applied."
-                        if any(complexity_factors.get(k) for k in COMPLEXITY_FACTOR_KEYS)
-                        else "."
-                    )
-                )
+                notes=build_report_notes(complexity_factors, custom_notes)
             )
             db.session.add(report_row)
             db.session.flush()  # assigns report_row.id
@@ -1203,10 +1256,10 @@ def api_search_patients():
     report from this user, never appear.
 
     Optional ?q= matches, in a single pass:
+      - patient first or last name, partial match
       - exact patient ID (if q is numeric)
-      - phone number, partial match
-      - report number (if q is numeric and matches one of THIS USER'S
-        reports, the owning patient is returned)
+    Phone number and report-number lookup are intentionally NOT matched —
+    search is name/ID only.
     With no q, returns the 100 most recently created matching patients.
     """
     if 'user_id' not in session:
@@ -1224,16 +1277,13 @@ def api_search_patients():
     )
 
     if q:
-        filters = [Patient.phone.ilike(f'%{q}%')]
+        # Name (first or last, partial) or exact patient ID only.
+        filters = [
+            Patient.first_name.ilike(f'%{q}%'),
+            Patient.last_name.ilike(f'%{q}%'),
+        ]
         if q.isdigit():
-            qnum = int(q)
-            filters.append(Patient.id == qnum)
-            # Only match a report number if it belongs to this user —
-            # otherwise a guessed/known report id from another clinician
-            # could be used to locate a patient this user shouldn't see.
-            report = Report.query.filter_by(id=qnum, created_by_user_id=user_id).first()
-            if report:
-                filters.append(Patient.id == report.patient_id)
+            filters.append(Patient.id == int(q))
         query = query.filter(db.or_(*filters))
 
     patients = query.order_by(Patient.id.desc()).limit(100).all()

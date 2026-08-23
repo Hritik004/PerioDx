@@ -55,6 +55,12 @@
     background:#1c2029;color:#eef1f8;font-size:13.5px;outline:none;
   }
   .field input:focus{border-color:#7fa8ff;}
+  .field textarea{
+    width:100%;padding:10px 12px;border-radius:9px;border:1px solid rgba(255,255,255,0.12);
+    background:#1c2029;color:#eef1f8;font-size:13px;outline:none;
+    resize:vertical;font-family:inherit;line-height:1.5;
+  }
+  .field textarea:focus{border-color:#7fa8ff;}
   .field-check{display:flex;align-items:center;gap:8px;}
   .field-check input{width:16px;height:16px;}
   .field-check label{margin:0;}
@@ -145,6 +151,11 @@
         </div>
       </div>
 
+      <div class="field">
+        <label for="customNotes">Additional notes (optional)</label>
+        <textarea id="customNotes" rows="3" placeholder="Any other clinical observations..."></textarea>
+      </div>
+
       <div class="field" style="margin-top:4px;">
         <label style="margin-bottom:8px;">Clinical findings (optional)</label>
         <div style="font-size:11.5px;color:#8992ab;margin-bottom:10px;">
@@ -220,6 +231,7 @@
     document.getElementById('newLastName').value = '';
     document.getElementById('newPhone').value = '';
     document.getElementById('newDiabetic').checked = false;
+    document.getElementById('customNotes').value = '';
     document.getElementById('cfPocketDepth').checked = false;
     document.getElementById('cfVerticalDefect').checked = false;
     document.getElementById('cfFurcation').checked = false;
@@ -247,6 +259,7 @@
     const payload = {
       report_id: REPORT_ID,
       patient_mode: patientMode,
+      notes: document.getElementById('customNotes').value.trim(),
       complexity_factors: {
         probing_depth_6mm_plus: document.getElementById('cfPocketDepth').checked,
         vertical_bone_defect_3mm_plus: document.getElementById('cfVerticalDefect').checked,
