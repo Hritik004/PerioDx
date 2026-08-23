@@ -12,6 +12,7 @@ from datetime import datetime
 import pymysql
 from dotenv import load_dotenv
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 import math
@@ -126,7 +127,7 @@ app.config['SQLALCHEMY_BINDS'] = {
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     "pool_pre_ping": True,
-    "pool_recycle": 280
+    "pool_recycle": 180
 }
 
 db = SQLAlchemy(app)
@@ -964,6 +965,14 @@ def save_report():
           "bite_collapse": true/false
         }
       }
+
+    RETRY NOTE: PythonAnywhere's shared MySQL occasionally drops an idle
+    pooled connection between pool_pre_ping's ping and the actual query
+    (pymysql.err.OperationalError 2013, "Lost connection to MySQL server
+    during query"). That's a transient infrastructure hiccup, not bad
+    data — nothing has been flushed/committed yet when the very first
+    INSERT hits it, so it's safe to roll back and retry once on a fresh
+    connection rather than surfacing a hard failure to the clinician.
     """
     if 'user_id' not in session:
         return jsonify({"success": False, "message": "Not authenticated"}), 401
@@ -989,109 +998,126 @@ def save_report():
     if patient_mode not in ('existing', 'new'):
         return jsonify({"success": False, "message": "patient_mode must be 'existing' or 'new'."}), 400
 
-    try:
-        # ---- Resolve or create the patient -----------------------------
-        if patient_mode == 'existing':
-            raw_patient_id = data.get('patient_id')
-            if not raw_patient_id:
-                return jsonify({"success": False, "message": "Patient ID is required."}), 400
-            try:
-                patient_id = int(raw_patient_id)
-            except (TypeError, ValueError):
-                return jsonify({"success": False, "message": "Patient ID must be a number."}), 400
+    max_attempts = 2
+    for attempt in range(1, max_attempts + 1):
+        try:
+            # ---- Resolve or create the patient -----------------------------
+            if patient_mode == 'existing':
+                raw_patient_id = data.get('patient_id')
+                if not raw_patient_id:
+                    return jsonify({"success": False, "message": "Patient ID is required."}), 400
+                try:
+                    patient_id = int(raw_patient_id)
+                except (TypeError, ValueError):
+                    return jsonify({"success": False, "message": "Patient ID must be a number."}), 400
 
-            patient = Patient.query.get(patient_id)
-            if not patient:
-                return jsonify({
-                    "success": False,
-                    "message": f"No patient found with ID {patient_id}."
-                }), 404
+                patient = Patient.query.get(patient_id)
+                if not patient:
+                    return jsonify({
+                        "success": False,
+                        "message": f"No patient found with ID {patient_id}."
+                    }), 404
 
-        else:  # patient_mode == 'new'
-            first_name = (data.get('first_name') or '').strip()
-            last_name = (data.get('last_name') or '').strip()
-            phone = (data.get('phone') or '').strip()
-            diabetic = bool(data.get('diabetic', False))
+            else:  # patient_mode == 'new'
+                first_name = (data.get('first_name') or '').strip()
+                last_name = (data.get('last_name') or '').strip()
+                phone = (data.get('phone') or '').strip()
+                diabetic = bool(data.get('diabetic', False))
 
-            if not first_name or not phone:
-                return jsonify({
-                    "success": False,
-                    "message": "First name and phone are required for a new patient."
-                }), 400
+                if not first_name or not phone:
+                    return jsonify({
+                        "success": False,
+                        "message": "First name and phone are required for a new patient."
+                    }), 400
 
-            patient = Patient(
-                first_name=first_name,
-                last_name=last_name or None,
-                phone=phone,
-                diabetic=diabetic
-            )
-            db.session.add(patient)
-            db.session.flush()  # assigns patient.id without committing yet
+                patient = Patient(
+                    first_name=first_name,
+                    last_name=last_name or None,
+                    phone=phone,
+                    diabetic=diabetic
+                )
+                db.session.add(patient)
+                db.session.flush()  # assigns patient.id without committing yet
 
-        # ---- Compute stage + create the Report row ----------------------
-        complexity_factors = data.get('complexity_factors') or {}
-        if not isinstance(complexity_factors, dict):
-            complexity_factors = {}
-        stage = compute_periodontitis_stage(teeth, complexity_factors)
+            # ---- Compute stage + create the Report row ----------------------
+            complexity_factors = data.get('complexity_factors') or {}
+            if not isinstance(complexity_factors, dict):
+                complexity_factors = {}
+            stage = compute_periodontitis_stage(teeth, complexity_factors)
 
-        report_row = Report(
-            patient_id=patient.id,
-            created_by_user_id=session['user_id'],
-            periodontitis_stage=stage,
-            notes=(
-                f"Auto-saved from diagnostic scan (cache id {report_id}). "
-                "Stage estimated from radiographic bone loss % and missing-"
-                "tooth count only — no clinical attachment loss (CAL) or "
-                "probing data was available"
-                + (
-                    "; clinician-entered complexity factors were applied."
-                    if any(complexity_factors.get(k) for k in COMPLEXITY_FACTOR_KEYS)
-                    else "."
+            report_row = Report(
+                patient_id=patient.id,
+                created_by_user_id=session['user_id'],
+                periodontitis_stage=stage,
+                notes=(
+                    f"Auto-saved from diagnostic scan (cache id {report_id}). "
+                    "Stage estimated from radiographic bone loss % and missing-"
+                    "tooth count only — no clinical attachment loss (CAL) or "
+                    "probing data was available"
+                    + (
+                        "; clinician-entered complexity factors were applied."
+                        if any(complexity_factors.get(k) for k in COMPLEXITY_FACTOR_KEYS)
+                        else "."
+                    )
                 )
             )
-        )
-        db.session.add(report_row)
-        db.session.flush()  # assigns report_row.id
+            db.session.add(report_row)
+            db.session.flush()  # assigns report_row.id
 
-        # ---- Write one ToothMeasurement row per detected tooth ----------
-        saved_count = 0
-        for jaw_key, order in (('upper', FDI_UPPER_ORDER), ('lower', FDI_LOWER_ORDER)):
-            jaw_teeth = teeth.get(jaw_key) or []
-            for tooth_data, tooth_number in zip(jaw_teeth, order):
-                status = tooth_data.get('status')
-                # Skip positions where no tooth was detected at all.
-                if status in (None, 'missing'):
-                    continue
+            # ---- Write one ToothMeasurement row per detected tooth ----------
+            saved_count = 0
+            for jaw_key, order in (('upper', FDI_UPPER_ORDER), ('lower', FDI_LOWER_ORDER)):
+                jaw_teeth = teeth.get(jaw_key) or []
+                for tooth_data, tooth_number in zip(jaw_teeth, order):
+                    status = tooth_data.get('status')
+                    # Skip positions where no tooth was detected at all.
+                    if status in (None, 'missing'):
+                        continue
 
-                measurement = ToothMeasurement(
-                    report_id=report_row.id,
-                    tooth_number=tooth_number,
-                    # Raw pixel distances from the model server (colab_server.py):
-                    # cej_ac_distance_px = CEJ->alveolar-crest distance,
-                    # tooth_length_px = CEJ->apex distance. Both are populated
-                    # whenever the CEJ/AC segmentation masks intersected the
-                    # tooth's long axis; otherwise NULL (status "unmeasured").
-                    cej_ac_distance_px=tooth_data.get('cej_ac_distance_px'),
-                    tooth_length_px=tooth_data.get('tooth_length_px')
-                )
-                db.session.add(measurement)
-                saved_count += 1
+                    measurement = ToothMeasurement(
+                        report_id=report_row.id,
+                        tooth_number=tooth_number,
+                        # Raw pixel distances from the model server (colab_server.py):
+                        # cej_ac_distance_px = CEJ->alveolar-crest distance,
+                        # tooth_length_px = CEJ->apex distance. Both are populated
+                        # whenever the CEJ/AC segmentation masks intersected the
+                        # tooth's long axis; otherwise NULL (status "unmeasured").
+                        cej_ac_distance_px=tooth_data.get('cej_ac_distance_px'),
+                        tooth_length_px=tooth_data.get('tooth_length_px')
+                    )
+                    db.session.add(measurement)
+                    saved_count += 1
 
-        db.session.commit()
+            db.session.commit()
 
-        return jsonify({
-            "success": True,
-            "message": "Report saved successfully.",
-            "patient_id": patient.id,
-            "report_id": report_row.id,
-            "periodontitis_stage": stage,
-            "teeth_saved": saved_count
-        }), 200
+            return jsonify({
+                "success": True,
+                "message": "Report saved successfully.",
+                "patient_id": patient.id,
+                "report_id": report_row.id,
+                "periodontitis_stage": stage,
+                "teeth_saved": saved_count
+            }), 200
 
-    except Exception as e:
-        db.session.rollback()
-        print(f"SAVE REPORT FAILED: {str(e)}")
-        return jsonify({"success": False, "message": "Failed to save report."}), 500
+        except OperationalError as e:
+            # Transient dropped-connection error (PythonAnywhere shared MySQL).
+            # pool_pre_ping usually catches this, but there's a race where the
+            # ping succeeds and the connection dies right after — rollback and
+            # retry once on a fresh connection before giving up.
+            db.session.rollback()
+            if attempt < max_attempts:
+                print(f"SAVE REPORT: transient DB error on attempt {attempt}, retrying: {e}")
+                continue
+            print(f"SAVE REPORT FAILED after {max_attempts} attempts: {str(e)}")
+            return jsonify({
+                "success": False,
+                "message": "Database connection was interrupted. Please try saving again."
+            }), 500
+
+        except Exception as e:
+            db.session.rollback()
+            print(f"SAVE REPORT FAILED: {str(e)}")
+            return jsonify({"success": False, "message": "Failed to save report."}), 500
 
 
 
