@@ -12,12 +12,81 @@
   .card h3{font-size:13px;margin-bottom:8px;font-weight:600;color:#7fa8ff;}
   .card img{width:100%;border-radius:8px;display:block;background:#000;}
   a.back{color:#7fa8ff;font-size:13px;display:inline-block;margin-bottom:20px;}
+
+  /* ---- top action row / save button ---- */
+  .top-actions{display:flex;align-items:center;gap:14px;margin-bottom:6px;flex-wrap:wrap;}
+  .btn-save{
+    font-weight:600;font-size:13.5px;color:#0a0c12;background:#7fa8ff;
+    padding:10px 18px;border-radius:100px;border:none;cursor:pointer;
+    display:inline-flex;align-items:center;gap:8px;
+  }
+  .btn-save:hover{background:#9db9ff;}
+  .btn-save:disabled{opacity:0.5;cursor:not-allowed;}
+  .save-status{font-size:12.5px;color:#8992ab;}
+  .save-status.ok{color:#34e0a6;}
+  .save-status.err{color:#ff6b81;}
+
+  /* ---- modal ---- */
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(2,3,7,0.78);
+    display:flex;align-items:center;justify-content:center;
+    opacity:0;pointer-events:none;transition:opacity .2s ease;z-index:300;padding:20px;
+  }
+  .modal-overlay.show{opacity:1;pointer-events:auto;}
+  .modal-box{
+    background:#161a24;border:1px solid rgba(255,255,255,0.1);border-radius:16px;
+    width:100%;max-width:420px;padding:24px;box-shadow:0 30px 70px rgba(0,0,0,0.45);
+  }
+  .modal-box h2{font-size:1.1rem;font-weight:600;margin-bottom:4px;}
+  .modal-box .modal-sub{font-size:12.5px;color:#8992ab;margin-bottom:18px;}
+
+  .mode-toggle{display:flex;gap:8px;margin-bottom:18px;}
+  .mode-btn{
+    flex:1;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.12);
+    background:transparent;color:#8992ab;font-size:13px;font-weight:600;cursor:pointer;
+  }
+  .mode-btn.active{background:rgba(127,168,255,0.14);border-color:#7fa8ff;color:#eef1f8;}
+
+  .field{margin-bottom:14px;}
+  .field:last-child{margin-bottom:0;}
+  .field label{font-size:12px;font-weight:600;color:#eef1f8;display:block;margin-bottom:6px;}
+  .field input[type="text"],.field input[type="number"],.field input[type="tel"]{
+    width:100%;padding:10px 12px;border-radius:9px;border:1px solid rgba(255,255,255,0.12);
+    background:#1c2029;color:#eef1f8;font-size:13.5px;outline:none;
+  }
+  .field input:focus{border-color:#7fa8ff;}
+  .field-check{display:flex;align-items:center;gap:8px;}
+  .field-check input{width:16px;height:16px;}
+  .field-check label{margin:0;}
+
+  .form-section{display:none;}
+  .form-section.active{display:block;}
+
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;}
+  .btn-ghost{
+    font-size:13px;font-weight:600;color:#8992ab;background:none;border:none;cursor:pointer;
+    padding:10px 14px;
+  }
+  .btn-confirm{
+    font-size:13px;font-weight:600;color:#0a0c12;background:#7fa8ff;border:none;
+    padding:10px 18px;border-radius:100px;cursor:pointer;
+  }
+  .btn-confirm:disabled{opacity:0.5;cursor:not-allowed;}
+  .modal-msg{font-size:12.5px;margin-top:12px;min-height:16px;}
+  .modal-msg.ok{color:#34e0a6;}
+  .modal-msg.err{color:#ff6b81;}
 </style>
 </head>
 <body>
   <a class="back" href="/dashboard_user">&larr; Back to dashboard</a>
-  <h1>Diagnostic report</h1>
+
+  <div class="top-actions">
+    <h1 style="margin-bottom:0;">Diagnostic report</h1>
+    <button class="btn-save" id="openSaveModalBtn" type="button">Save report</button>
+    <span class="save-status" id="saveStatus"></span>
+  </div>
   <div class="sub">Generated {{ report.created_at }} &middot; ID {{ report.id }}</div>
+
   <div class="grid">
     <div class="card">
       <h3>Combined annotation</h3>
@@ -36,5 +105,215 @@
       <img src="{{ report.images.model_c }}" alt="Bone level segmentation model output">
     </div>
   </div>
+
+  <!-- ================= Save report modal ================= -->
+  <div class="modal-overlay" id="saveModalOverlay">
+    <div class="modal-box">
+      <h2>Save this report</h2>
+      <div class="modal-sub">Attach this diagnosis to a patient record.</div>
+
+      <div class="mode-toggle">
+        <button type="button" class="mode-btn active" id="modeExistingBtn">Existing patient</button>
+        <button type="button" class="mode-btn" id="modeNewBtn">New patient</button>
+      </div>
+
+      <!-- Existing patient -->
+      <div class="form-section active" id="sectionExisting">
+        <div class="field">
+          <label for="existingPatientId">Patient ID</label>
+          <input type="number" id="existingPatientId" placeholder="e.g. 42" min="1">
+        </div>
+      </div>
+
+      <!-- New patient -->
+      <div class="form-section" id="sectionNew">
+        <div class="field">
+          <label for="newFirstName">First name</label>
+          <input type="text" id="newFirstName" placeholder="Jane">
+        </div>
+        <div class="field">
+          <label for="newLastName">Last name</label>
+          <input type="text" id="newLastName" placeholder="Doe">
+        </div>
+        <div class="field">
+          <label for="newPhone">Phone</label>
+          <input type="tel" id="newPhone" placeholder="9876543210">
+        </div>
+        <div class="field field-check">
+          <input type="checkbox" id="newDiabetic">
+          <label for="newDiabetic">Patient is diabetic</label>
+        </div>
+      </div>
+
+      <div class="field" style="margin-top:4px;">
+        <label style="margin-bottom:8px;">Clinical findings (optional)</label>
+        <div style="font-size:11.5px;color:#8992ab;margin-bottom:10px;">
+          The scan can only estimate bone loss and tooth loss. If you've
+          examined the patient and any of these are present, check them —
+          per staging criteria, any one of them escalates a Stage III case
+          to Stage IV.
+        </div>
+        <div class="field-check" style="margin-bottom:8px;">
+          <input type="checkbox" id="cfPocketDepth">
+          <label for="cfPocketDepth">Probing depth &ge;6mm at any site</label>
+        </div>
+        <div class="field-check" style="margin-bottom:8px;">
+          <input type="checkbox" id="cfVerticalDefect">
+          <label for="cfVerticalDefect">Vertical bone defect &ge;3mm</label>
+        </div>
+        <div class="field-check" style="margin-bottom:8px;">
+          <input type="checkbox" id="cfFurcation">
+          <label for="cfFurcation">Furcation involvement (Class II/III)</label>
+        </div>
+        <div class="field-check" style="margin-bottom:8px;">
+          <input type="checkbox" id="cfFewTeeth">
+          <label for="cfFewTeeth">Fewer than 20 remaining teeth</label>
+        </div>
+        <div class="field-check">
+          <input type="checkbox" id="cfBiteCollapse">
+          <label for="cfBiteCollapse">Bite collapse / drifting / flaring</label>
+        </div>
+      </div>
+
+      <div class="modal-msg" id="modalMsg"></div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost" id="cancelSaveBtn">Cancel</button>
+        <button type="button" class="btn-confirm" id="confirmSaveBtn">Save report</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const REPORT_ID = {{ report.id | tojson }};
+
+  const openBtn = document.getElementById('openSaveModalBtn');
+  const overlay = document.getElementById('saveModalOverlay');
+  const cancelBtn = document.getElementById('cancelSaveBtn');
+  const confirmBtn = document.getElementById('confirmSaveBtn');
+  const modalMsg = document.getElementById('modalMsg');
+  const saveStatus = document.getElementById('saveStatus');
+
+  const modeExistingBtn = document.getElementById('modeExistingBtn');
+  const modeNewBtn = document.getElementById('modeNewBtn');
+  const sectionExisting = document.getElementById('sectionExisting');
+  const sectionNew = document.getElementById('sectionNew');
+
+  let patientMode = 'existing';
+
+  function setMode(mode){
+    patientMode = mode;
+    modeExistingBtn.classList.toggle('active', mode === 'existing');
+    modeNewBtn.classList.toggle('active', mode === 'new');
+    sectionExisting.classList.toggle('active', mode === 'existing');
+    sectionNew.classList.toggle('active', mode === 'new');
+    modalMsg.textContent = '';
+    modalMsg.className = 'modal-msg';
+  }
+  modeExistingBtn.addEventListener('click', () => setMode('existing'));
+  modeNewBtn.addEventListener('click', () => setMode('new'));
+
+  function openModal(){
+    setMode('existing');
+    document.getElementById('existingPatientId').value = '';
+    document.getElementById('newFirstName').value = '';
+    document.getElementById('newLastName').value = '';
+    document.getElementById('newPhone').value = '';
+    document.getElementById('newDiabetic').checked = false;
+    document.getElementById('cfPocketDepth').checked = false;
+    document.getElementById('cfVerticalDefect').checked = false;
+    document.getElementById('cfFurcation').checked = false;
+    document.getElementById('cfFewTeeth').checked = false;
+    document.getElementById('cfBiteCollapse').checked = false;
+    modalMsg.textContent = '';
+    modalMsg.className = 'modal-msg';
+    overlay.classList.add('show');
+  }
+  function closeModal(){
+    overlay.classList.remove('show');
+  }
+
+  openBtn.addEventListener('click', openModal);
+  cancelBtn.addEventListener('click', closeModal);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && overlay.classList.contains('show')) closeModal();
+  });
+
+  async function confirmSave(){
+    modalMsg.textContent = '';
+    modalMsg.className = 'modal-msg';
+
+    const payload = {
+      report_id: REPORT_ID,
+      patient_mode: patientMode,
+      complexity_factors: {
+        probing_depth_6mm_plus: document.getElementById('cfPocketDepth').checked,
+        vertical_bone_defect_3mm_plus: document.getElementById('cfVerticalDefect').checked,
+        furcation_class_2_3: document.getElementById('cfFurcation').checked,
+        fewer_than_20_teeth: document.getElementById('cfFewTeeth').checked,
+        bite_collapse: document.getElementById('cfBiteCollapse').checked
+      }
+    };
+
+    if (patientMode === 'existing') {
+      const pid = document.getElementById('existingPatientId').value.trim();
+      if (!pid) {
+        modalMsg.textContent = 'Please enter a patient ID.';
+        modalMsg.className = 'modal-msg err';
+        return;
+      }
+      payload.patient_id = pid;
+    } else {
+      const firstName = document.getElementById('newFirstName').value.trim();
+      const phone = document.getElementById('newPhone').value.trim();
+      if (!firstName || !phone) {
+        modalMsg.textContent = 'First name and phone are required.';
+        modalMsg.className = 'modal-msg err';
+        return;
+      }
+      payload.first_name = firstName;
+      payload.last_name = document.getElementById('newLastName').value.trim();
+      payload.phone = phone;
+      payload.diabetic = document.getElementById('newDiabetic').checked;
+    }
+
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Saving…';
+
+    try {
+      const response = await fetch('/api/save-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to save report.');
+      }
+
+      modalMsg.textContent = `Saved — patient #${data.patient_id}, periodontitis stage: ${data.periodontitis_stage}.`;
+      modalMsg.className = 'modal-msg ok';
+
+      saveStatus.textContent = `Saved (patient #${data.patient_id}, ${data.periodontitis_stage})`;
+      saveStatus.className = 'save-status ok';
+      openBtn.disabled = true;
+
+      setTimeout(closeModal, 1600);
+    } catch (err) {
+      modalMsg.textContent = err.message;
+      modalMsg.className = 'modal-msg err';
+      saveStatus.textContent = 'Save failed';
+      saveStatus.className = 'save-status err';
+    } finally {
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = 'Save report';
+    }
+  }
+
+  confirmBtn.addEventListener('click', confirmSave);
+</script>
+
 </body>
 </html>
