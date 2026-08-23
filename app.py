@@ -826,6 +826,53 @@ def api_diagnose():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+# ==========================================
+# --- NEW: CLEAR REPORT CACHE ---
+# ==========================================
+@app.route('/api/clear-report-cache', methods=['POST'])
+def clear_report_cache():
+    """
+    Deletes every cached report JSON on disk that belongs to the logged-in
+    user (the report_cache/<uuid>.json files written by /api/diagnose).
+
+    This is scoped to the current user only — it never touches another
+    clinician's cached reports — and it only affects the on-disk cache,
+    not anything already persisted via /api/save-report (Report /
+    ToothMeasurement rows are untouched). Once a file is removed here,
+    /see-report and "See report" for that diagnosis can no longer render
+    it, and /api/save-report for that report_id will start returning
+    "Cached report not found."
+    """
+    if 'user_id' not in session:
+        return jsonify({"success": False, "message": "Not authenticated"}), 401
+
+    user_id = session['user_id']
+    cleared_count = 0
+
+    for filename in os.listdir(REPORTS_DIR):
+        if not filename.endswith('.json'):
+            continue
+        file_path = os.path.join(REPORTS_DIR, filename)
+        try:
+            with open(file_path, 'r') as f:
+                record = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            continue
+
+        if record.get('user_id') != user_id:
+            continue
+
+        try:
+            os.remove(file_path)
+            cleared_count += 1
+        except OSError:
+            continue
+
+    session.pop('last_report_id', None)
+
+    return jsonify({"success": True, "cleared_count": cleared_count}), 200
+
+
 @app.route('/see-report')
 def see_report():
     """Standalone page to revisit the most recent report (e.g. after a reload)."""

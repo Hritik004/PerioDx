@@ -1365,6 +1365,7 @@
       const seeReportBtn = document.createElement('button');
       seeReportBtn.type = 'button';
       seeReportBtn.className = 'btn-primary';
+      seeReportBtn.id = 'seeReportBtn';
       seeReportBtn.textContent = 'See report';
       seeReportBtn.onclick = () => openReportModal(lastReportImages, lastReportTeeth);
       btnRow.appendChild(seeReportBtn);
@@ -1376,6 +1377,14 @@
       saveReportBtn.textContent = 'Save report';
       saveReportBtn.onclick = openSaveModal;
       btnRow.appendChild(saveReportBtn);
+
+      const clearCacheBtn = document.createElement('button');
+      clearCacheBtn.type = 'button';
+      clearCacheBtn.className = 'btn-ghost';
+      clearCacheBtn.id = 'clearCacheBtn';
+      clearCacheBtn.textContent = 'Clear report cache';
+      clearCacheBtn.onclick = clearReportCache;
+      btnRow.appendChild(clearCacheBtn);
 
       const statusSpan = document.createElement('span');
       statusSpan.className = 'save-status-inline';
@@ -1395,6 +1404,46 @@
     } finally {
       runPipelineBtn.disabled = false;
       runPipelineBtn.textContent = 'Run diagnostic pipeline';
+    }
+  }
+
+  // ---------------- Clear report cache ----------------
+  async function clearReportCache(){
+    const confirmed = window.confirm(
+      "This permanently deletes all of your cached report images, including the " +
+      "one currently open — it can't be viewed again after this (anything you've " +
+      "already saved to a patient record is unaffected). Continue?"
+    );
+    if (!confirmed) return;
+
+    const clearBtn = document.getElementById('clearCacheBtn');
+    if (clearBtn) { clearBtn.disabled = true; clearBtn.textContent = 'Clearing…'; }
+
+    try {
+      const response = await fetch('/api/clear-report-cache', { method: 'POST' });
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to clear report cache.');
+      }
+
+      // The images/teeth backing this diagnosis are gone now — disable the
+      // buttons that depend on the cache.
+      const seeBtn = document.getElementById('seeReportBtn');
+      if (seeBtn) seeBtn.disabled = true;
+
+      const saveBtn = document.getElementById('saveReportBtn');
+      if (saveBtn) saveBtn.disabled = true; // save also reads the cache — would just fail now
+
+      lastReportImages = null;
+      lastReportTeeth = null;
+      lastReportId = null;
+
+      if (clearBtn) clearBtn.textContent = 'Cache cleared';
+      showToast(`Report cache cleared (${data.cleared_count} file${data.cleared_count === 1 ? '' : 's'})`);
+    } catch (err) {
+      if (clearBtn) { clearBtn.disabled = false; clearBtn.textContent = 'Clear report cache'; }
+      showToast('Failed to clear cache: ' + err.message);
     }
   }
 
