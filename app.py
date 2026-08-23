@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from sqlalchemy import text
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
-import math
+
 from datetime import timedelta
 
 
