@@ -274,7 +274,7 @@
 // Initialize Google Auth
   function initGoogle() {
     google.accounts.id.initialize({
-      client_id: "656588864375-6ba1to3g9t53slco1urn3290iac1p7nd.apps.googleusercontent.com",
+      client_id: "{{ google_client_id }}",
       callback: handleGoogleResponse,
 
       // Automatically log in returning users without them clicking the button

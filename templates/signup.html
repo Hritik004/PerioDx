@@ -497,7 +497,7 @@
   // Initialize Google Auth
   function initGoogle() {
     google.accounts.id.initialize({
-      client_id: "656588864375-6ba1to3g9t53slco1urn3290iac1p7nd.apps.googleusercontent.com",
+      client_id: "{{ google_client_id }}",
       callback: handleGoogleResponse,
       auto_select: true // 1. ADD THIS: Tells Google to auto-login returning users
     });
@@ -520,25 +520,6 @@
 
 
 
-//   // Initialize Google Auth
-//   function initGoogle() {
-//     google.accounts.id.initialize({
-//       client_id: "593311499357-ehphsm15aei4bvlvtj1443f35o2opopf.apps.googleusercontent.com",
-//       callback: handleGoogleResponse
-//     });
-
-//     const googleBtnContainer = document.getElementById('google-btn-container');
-//     if (googleBtnContainer) {
-//       google.accounts.id.renderButton(
-//         googleBtnContainer,
-//         {
-//           theme: 'outline',
-//           size: 'large',
-//           width: googleBtnContainer.offsetWidth
-//         }
-//       );
-//     }
-//   }
 
   async function handleGoogleResponse(response) {
     const id_token = response.credential;

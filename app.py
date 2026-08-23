@@ -124,7 +124,7 @@ otp_store = {}
 
 @app.route('/signup')
 def signup_faculty():
-    return render_template('signup.html')
+    return render_template('signup.html',google_client_id=GOOGLE_CLIENT_ID)
 
 
 @app.route('/dashboard')
@@ -154,7 +154,7 @@ def logout():
 
 @app.route('/login',methods=['GET'])
 def login_student():
-    return render_template('login.html')
+    return render_template('login.html',google_client_id=GOOGLE_CLIENT_ID)
 
 
 @app.route('/login', methods=['POST'])
