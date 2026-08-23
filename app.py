@@ -1435,6 +1435,16 @@ def api_report_detail(report_id):
  
 
 
+@app.route('/chat')
+def chat_page():
+    if 'user_id' not in session:
+        return redirect(url_for('login_student'))
+    return render_template('periodx_chat.html')
+
+
+
+
+
 
 
 
