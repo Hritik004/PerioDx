@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PerioDx — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --violet-1:#6a5ff0;
+    --violet-2:#8b5cf6;
+    --violet-3:#4f46e5;
+    --ink:#211f36;
+    --muted:#6b6885;
+    --card:#ffffff;
+    --hair:rgba(33,31,54,0.08);
+    --mint:#00c896;
+    --amber:#f5a524;
+    --rose:#f0556a;
+    --bg-1:rgba(139,92,246,0.12);
+    --bg-2:rgba(106,95,240,0.10);
+    --bg-base:#f7f6fb;
+    --field-bg:#fbfaff;
+    --overlay:rgba(33,31,54,0.45);
+    --surface-tint:rgba(33,31,54,0.05);
+    --icon-tint:rgba(33,31,54,0.06);
+    --font-display:'Fraunces', serif;
+    --font-body:'Inter', sans-serif;
+    --font-mono:'JetBrains Mono', monospace;
+    --sidebar-w:264px;
+    --tooth-moderate:#ef7a54;
+    --tooth-severe:#d43d3d;
+  }
+
+  html[data-theme="dark"]{
+    --violet-1:#5b8cff;
+    --violet-2:#7fa8ff;
+    --violet-3:#3d6ae8;
+    --ink:#eef1f8;
+    --muted:#8992ab;
+    --card:#161a24;
+    --hair:rgba(255,255,255,0.10);
+    --mint:#34e0a6;
+    --amber:#ffb84d;
+    --rose:#ff6b81;
+    --bg-1:rgba(91,140,255,0.14);
+    --bg-2:rgba(52,224,166,0.06);
+    --bg-base:#0a0c12;
+    --field-bg:#1c2029;
+    --overlay:rgba(2,3,7,0.78);
+    --surface-tint:rgba(255,255,255,0.06);
+    --icon-tint:rgba(255,255,255,0.09);
+    --tooth-moderate:#ff8f66;
+    --tooth-severe:#ff4d5e;
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+
+  body{
+    font-family:var(--font-body);
+    color:var(--ink);
+    background:
+      radial-gradient(1100px 600px at 90% -10%, var(--bg-1), transparent),
+      radial-gradient(900px 500px at -10% 30%, var(--bg-2), transparent),
+      var(--bg-base);
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+    transition:background-color .25s ease, color .25s ease;
+  }
+  a{color:inherit;text-decoration:none;}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+  input,select{font-family:inherit;}
+
+  :focus-visible{outline:2px solid var(--violet-1);outline-offset:3px;}
+
+  /* ---------------- shell ---------------- */
+  .shell{display:grid;grid-template-columns:var(--sidebar-w) 1fr;min-height:100vh;}
+
+  /* ---------------- sidebar ---------------- */
+  .sidebar{
+    background:rgba(255,255,255,0.7);
+    backdrop-filter:blur(12px);
+    border-right:1px solid var(--hair);
+    display:flex;flex-direction:column;
+    padding:24px 18px;
+    position:sticky;top:0;height:100vh;
+    transition:background-color .25s ease, border-color .25s ease;
+  }
+  html[data-theme="dark"] .sidebar{background:rgba(22,20,34,0.75);}
+  html[data-theme="dark"] .action-card,
+  html[data-theme="dark"] .stat-card,
+  html[data-theme="dark"] .settings-card,
+  html[data-theme="dark"] .upload-card,
+  html[data-theme="dark"] .pipeline-card,
+  html[data-theme="dark"] .report-modal{
+    box-shadow:0 14px 34px rgba(0,0,0,0.45);
+  }
+
+  .logo-row{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:6px 10px 26px;
+  }
+  .logo{
+    font-family:var(--font-display);font-weight:600;font-size:20px;
+    display:flex;align-items:center;gap:9px;letter-spacing:-0.01em;
+  }
+  .logo .dot{
+    width:9px;height:9px;border-radius:2px;
+    background:linear-gradient(135deg,var(--violet-1),var(--mint));
+    flex-shrink:0;
+  }
+
+  .theme-toggle{
+    width:32px;height:32px;border-radius:10px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    border:1px solid var(--hair);background:var(--card);color:var(--muted);
+    transition:color .15s ease, border-color .15s ease, transform .15s ease, background-color .25s ease;
+  }
+  .theme-toggle:hover{color:var(--violet-3);border-color:rgba(106,95,240,0.35);transform:translateY(-1px);}
+  .theme-toggle svg{width:16px;height:16px;display:block;}
+  .theme-toggle .icon-sun{display:none;}
+  .theme-toggle .icon-moon{display:block;}
+  html[data-theme="dark"] .theme-toggle .icon-sun{display:block;}
+  html[data-theme="dark"] .theme-toggle .icon-moon{display:none;}
+
+  .nav-group{margin-bottom:22px;}
+  .nav-label{
+    font-family:var(--font-mono);font-size:10.5px;color:var(--muted);
+    text-transform:uppercase;letter-spacing:0.09em;
+    padding:0 10px;margin-bottom:8px;display:block;
+  }
+  .nav-item{
+    display:flex;align-items:center;gap:12px;
+    padding:10px 10px;border-radius:12px;margin-bottom:2px;
+    font-size:14px;font-weight:500;color:var(--muted);
+    transition:background .15s ease, color .15s ease;
+    width:100%;text-align:left;
+  }
+  .nav-item:hover{background:rgba(106,95,240,0.07);color:var(--ink);}
+  .nav-item.active{
+    background:linear-gradient(135deg, rgba(106,95,240,0.12), rgba(139,92,246,0.08));
+    color:var(--violet-3);font-weight:600;
+  }
+  .nav-item .ic{
+    width:26px;height:26px;border-radius:8px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--font-mono);font-size:11px;font-weight:600;
+    background:var(--icon-tint);color:var(--muted);
+  }
+  .nav-item.active .ic{
+    background:linear-gradient(135deg,var(--violet-1),var(--violet-3));color:#fff;
+  }
+  .nav-item .count{
+    margin-left:auto;font-family:var(--font-mono);font-size:11px;color:var(--muted);
+    background:var(--surface-tint);padding:2px 7px;border-radius:100px;
+  }
+  .nav-item.active .count{color:var(--violet-3);background:rgba(106,95,240,0.12);}
+
+  .sidebar-bottom{margin-top:auto;}
+  .profile-card{
+    display:flex;align-items:center;gap:10px;padding:10px;border-radius:14px;
+    border:1px solid var(--hair);background:var(--card);
+    transition:background-color .25s ease, border-color .25s ease;
+  }
+  .avatar{
+    width:36px;height:36px;border-radius:10px;flex-shrink:0;
+    background:linear-gradient(135deg,var(--violet-1),var(--violet-3));
+    color:#fff;display:flex;align-items:center;justify-content:center;
+    font-family:var(--font-display);font-weight:600;font-size:14px;
+  }
+  .profile-meta{min-width:0;}
+  .profile-meta .name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .profile-meta .sub{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .profile-card .logout{margin-left:auto;font-size:15px;color:var(--muted);}
+  .profile-card .logout:hover{color:var(--rose);}
+
+  /* ---------------- main ---------------- */
+  .main{padding:26px 36px 60px;max-width:1000px;}
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;margin-bottom:30px;gap:20px;
+  }
+  .topbar h1{font-family:var(--font-display);font-size:1.7rem;font-weight:600;letter-spacing:-0.01em;}
+  .topbar .search{
+    display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--hair);
+    border-radius:100px;padding:9px 16px;font-size:13px;color:var(--muted);width:230px;
+    transition:background-color .25s ease, border-color .25s ease;
+  }
+  .topbar .search input{border:none;outline:none;background:none;font-size:13px;width:100%;color:var(--ink);}
+
+  .view{display:none;}
+  .view.active{display:block;}
+
+  /* ---------------- home ---------------- */
+  .greet-block{margin-bottom:30px;}
+  .greet-block .tag{
+    font-family:var(--font-mono);font-size:12px;color:var(--violet-3);
+    text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;display:block;
+  }
+  .greet-block h2{font-family:var(--font-display);font-size:1.9rem;font-weight:600;letter-spacing:-0.01em;margin-bottom:8px;}
+  .greet-block p{color:var(--muted);font-size:0.98rem;max-width:520px;}
+
+  .action-row{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:32px;}
+  .action-card{
+    background:var(--card);border:1px solid var(--hair);border-radius:18px;padding:24px;
+    box-shadow:0 12px 30px rgba(76,63,180,0.06);
+    display:flex;flex-direction:column;gap:14px;
+    transition:transform .18s ease, box-shadow .18s ease, background-color .25s ease, border-color .25s ease;
+  }
+  .action-card:hover{transform:translateY(-2px);box-shadow:0 18px 40px rgba(76,63,180,0.1);}
+  .action-card .ic-big{
+    width:44px;height:44px;border-radius:12px;
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--font-mono);font-size:15px;font-weight:600;
+  }
+  .action-card.diagnose .ic-big{background:linear-gradient(135deg,var(--violet-1),var(--violet-3));color:#fff;}
+  .action-card.history .ic-big{background:linear-gradient(135deg,var(--mint),#00a67e);color:#fff;}
+  .action-card h3{font-family:var(--font-display);font-size:1.15rem;font-weight:600;}
+  .action-card p{color:var(--muted);font-size:0.88rem;flex-grow:1;}
+  .action-card .go{
+    font-size:13px;font-weight:600;color:var(--violet-3);display:inline-flex;align-items:center;gap:6px;
+    align-self:flex-start;
+  }
+
+  .stats-row{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:32px;}
+  .stat-card{
+    background:var(--card);border:1px solid var(--hair);border-radius:16px;padding:20px;
+    transition:background-color .25s ease, border-color .25s ease;
+  }
+  .stat-card .n{font-family:var(--font-display);font-size:1.7rem;font-weight:600;}
+  .stat-card .l{color:var(--muted);font-size:0.82rem;margin-top:4px;}
+
+  /* ---------------- section header ---------------- */
+  .section-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:16px;flex-wrap:wrap;}
+  .section-top h2{font-family:var(--font-display);font-size:1.5rem;font-weight:600;}
+  .section-top p{color:var(--muted);font-size:0.9rem;margin-top:4px;}
+  .btn-primary{
+    font-weight:600;font-size:13.5px;color:#fff;
+    background:linear-gradient(135deg,var(--violet-1),var(--violet-3));
+    padding:11px 20px;border-radius:100px;
+    display:inline-flex;align-items:center;gap:8px;
+    box-shadow:0 10px 22px rgba(106,95,240,0.26);
+    transition:transform .18s ease, box-shadow .18s ease, opacity .18s ease;
+  }
+  .btn-primary:hover{transform:translateY(-1px);box-shadow:0 14px 28px rgba(106,95,240,0.34);}
+  .btn-primary:disabled{opacity:0.45;cursor:not-allowed;transform:none;box-shadow:none;}
+  .btn-ghost{
+    font-weight:600;font-size:13px;color:var(--violet-3);
+    border:1px solid rgba(106,95,240,0.25);padding:10px 18px;border-radius:100px;
+    background:rgba(106,95,240,0.05);
+  }
+
+  .empty-state{
+    text-align:center;padding:50px 20px;background:var(--card);border:1px dashed var(--hair);border-radius:18px;color:var(--muted);
+    font-size:13.5px;
+  }
+  .empty-state .em-ic{font-family:var(--font-mono);font-size:22px;color:var(--violet-2);margin-bottom:10px;}
+
+  /* ---------------- diagnose view ---------------- */
+  .diagnose-layout{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;}
+
+  .upload-card,.pipeline-card{
+    background:var(--card);border:1px solid var(--hair);border-radius:18px;padding:24px;
+    box-shadow:0 12px 30px rgba(76,63,180,0.06);
+    transition:background-color .25s ease, border-color .25s ease;
+  }
+  .upload-card h3,.pipeline-card h3{font-family:var(--font-display);font-size:1.1rem;font-weight:600;margin-bottom:4px;}
+  .upload-card .desc,.pipeline-card .desc{color:var(--muted);font-size:12.5px;margin-bottom:16px;}
+
+  .dropzone{
+    border:1.5px dashed rgba(106,95,240,0.35);border-radius:16px;
+    background:rgba(106,95,240,0.04);
+    padding:34px 20px;text-align:center;cursor:pointer;
+    transition:border-color .15s ease, background-color .15s ease;
+  }
+  .dropzone:hover,.dropzone.drag{border-color:var(--violet-1);background:rgba(106,95,240,0.09);}
+  .dropzone .dz-ic{
+    width:46px;height:46px;border-radius:13px;margin:0 auto 14px;
+    background:linear-gradient(135deg,var(--violet-1),var(--violet-3));color:#fff;
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--font-mono);font-weight:600;font-size:14px;
+  }
+  .dropzone .dz-title{font-size:13.5px;font-weight:600;margin-bottom:4px;}
+  .dropzone .dz-sub{font-size:12px;color:var(--muted);}
+
+  .preview-wrap{position:relative;border-radius:16px;overflow:hidden;border:1px solid var(--hair);}
+  .preview-wrap img{display:block;width:100%;max-height:280px;object-fit:contain;background:#0d0e14;}
+  .preview-meta{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:12px 14px;background:var(--field-bg);
+  }
+  .preview-meta .fname{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .preview-meta .remove{font-size:12.5px;font-weight:600;color:var(--rose);flex-shrink:0;}
+
+  .pipeline-steps{list-style:none;margin:0 0 18px;padding:0;display:flex;flex-direction:column;gap:10px;}
+  .pipeline-steps li{
+    display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--muted);
+  }
+  .pipeline-steps .dotidle{width:7px;height:7px;border-radius:50%;background:var(--hair);flex-shrink:0;}
+  .pipeline-steps li.done .dotidle{background:var(--mint);}
+  .pipeline-steps li.active .dotidle{background:var(--violet-1);}
+  .pipeline-steps li.done,.pipeline-steps li.active{color:var(--ink);}
+
+  .results-panel{
+    margin-top:18px;padding:18px;border-radius:14px;
+    background:rgba(0,200,150,0.06);border:1px solid rgba(0,200,150,0.25);
+    display:none;
+  }
+  .results-panel.show{display:block;}
+  .results-panel .r-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .results-panel .r-head h4{font-family:var(--font-display);font-size:1rem;font-weight:600;color:var(--mint);}
+  .results-panel .r-body{font-size:13px;color:var(--ink);line-height:1.6;}
+  .results-panel .r-body p{margin-bottom:12px;}
+  .results-panel.error{background:rgba(240,85,106,0.06);border-color:rgba(240,85,106,0.25);}
+  .results-panel.error .r-head h4{color:var(--rose);}
+
+  /* ---------------- report modal ---------------- */
+  .report-modal-overlay{
+    position:fixed;inset:0;background:var(--overlay);
+    display:flex;align-items:center;justify-content:center;
+    opacity:0;pointer-events:none;transition:opacity .2s ease;
+    z-index:300;padding:20px;
+  }
+  .report-modal-overlay.show{opacity:1;pointer-events:auto;}
+  .report-modal{
+    background:var(--card);border-radius:22px;width:100%;max-width:980px;
+    max-height:92vh;
+    box-shadow:0 30px 70px rgba(0,0,0,0.35);
+    display:flex;flex-direction:column;overflow:hidden;
+    transform:translateY(10px);transition:transform .2s ease, max-width .22s ease, max-height .22s ease, border-radius .22s ease;
+  }
+  .report-modal-overlay.show .report-modal{transform:translateY(0);}
+
+  /* Fullscreen state — expands the report modal to fill the viewport */
+  .report-modal-overlay.fullscreen{padding:0;}
+  .report-modal-overlay.fullscreen .report-modal{
+    max-width:100vw;width:100vw;max-height:100vh;height:100vh;border-radius:0;
+  }
+  .report-modal-overlay.fullscreen .report-modal-body img{max-height:min(72vh,900px);}
+
+  .report-modal-head{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:20px 26px;border-bottom:1px solid var(--hair);flex-shrink:0;
+  }
+  .report-modal-head h3{font-family:var(--font-display);font-size:1.3rem;font-weight:600;}
+  .report-modal-head-actions{display:flex;align-items:center;gap:8px;}
+  .report-modal-icon-btn{
+    width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+    color:var(--muted);background:var(--surface-tint);flex-shrink:0;
+    transition:color .15s ease, background-color .15s ease;
+  }
+  .report-modal-icon-btn svg{width:16px;height:16px;display:block;}
+  .report-modal-icon-btn:hover{color:var(--violet-3);background:rgba(106,95,240,0.1);}
+  .report-modal-close:hover{color:var(--rose);background:rgba(240,85,106,0.1);}
+  .report-modal-fullscreen-btn .icon-expand{display:block;}
+  .report-modal-fullscreen-btn .icon-collapse{display:none;}
+  .report-modal-overlay.fullscreen .report-modal-fullscreen-btn .icon-expand{display:none;}
+  .report-modal-overlay.fullscreen .report-modal-fullscreen-btn .icon-collapse{display:block;}
+  .report-modal-scroll{overflow-y:auto;flex-grow:1;}
+  .report-tabs{
+    display:flex;gap:6px;padding:18px 26px 0;flex-wrap:wrap;
+  }
+  .report-tab{
+    font-size:13px;font-weight:600;color:var(--muted);
+    padding:9px 16px;border-radius:100px;background:var(--surface-tint);
+    transition:background-color .15s ease, color .15s ease;
+  }
+  .report-tab.active{
+    background:linear-gradient(135deg,var(--violet-1),var(--violet-3));color:#fff;
+  }
+  .report-modal-body{padding:16px 26px 8px;}
+  .report-modal-body .rm-frame{
+    border-radius:16px;overflow:hidden;border:1px solid var(--hair);background:#0d0e14;
+  }
+  .report-modal-body img{display:block;width:100%;max-height:min(62vh,620px);object-fit:contain;margin:0 auto;transition:max-height .22s ease;}
+
+  /* ---------------- per-tooth map ---------------- */
+  .tooth-map-section{padding:8px 26px 26px;border-top:1px solid var(--hair);margin-top:14px;}
+  .tm-header{
+    display:flex;align-items:center;gap:10px;margin:18px 0 16px;
+  }
+  .tm-header::after{content:'';flex-grow:1;height:1px;background:var(--hair);}
+  .tm-title{
+    font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--violet-3);
+    text-transform:uppercase;letter-spacing:0.1em;white-space:nowrap;
+  }
+  .tm-jaw-label{
+    text-align:center;font-family:var(--font-mono);font-size:10.5px;color:var(--muted);
+    text-transform:uppercase;letter-spacing:0.09em;margin-bottom:10px;
+  }
+  .tm-row{
+    display:flex;gap:7px;justify-content:center;margin-bottom:20px;
+    overflow-x:auto;padding:4px 2px;
+  }
+  .tm-tooth{
+    width:34px;height:42px;border-radius:9px;flex-shrink:0;
+    border:1.5px solid var(--hair);background:var(--surface-tint);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+    position:relative;
+  }
+  .tm-tooth:hover,.tm-tooth:focus-visible{transform:translateY(-3px);}
+  .tm-tooth.normal{border-color:var(--mint);background:rgba(0,200,150,0.08);}
+  .tm-tooth.mild{border-color:var(--amber);background:rgba(245,165,36,0.10);}
+  .tm-tooth.moderate{border-color:var(--tooth-moderate);background:rgba(239,122,84,0.10);}
+  .tm-tooth.severe{border-color:var(--tooth-severe);background:rgba(212,61,61,0.12);box-shadow:0 0 12px rgba(212,61,61,0.25);}
+  .tm-tooth.nodata{border-color:var(--hair);background:var(--surface-tint);opacity:0.45;cursor:default;}
+  .tm-tooth.nodata:hover{transform:none;}
+  .tm-tooth.selected{outline:2px solid var(--violet-1);outline-offset:2px;}
+
+  .tm-legend{
+    display:flex;flex-wrap:wrap;gap:16px;justify-content:center;
+    margin-bottom:14px;font-size:11.5px;color:var(--muted);
+  }
+  .tm-leg-item{display:flex;align-items:center;gap:6px;}
+  .tm-swatch{width:11px;height:11px;border-radius:3px;flex-shrink:0;}
+  .tm-swatch.normal{background:var(--mint);}
+  .tm-swatch.mild{background:var(--amber);}
+  .tm-swatch.moderate{background:var(--tooth-moderate);}
+  .tm-swatch.severe{background:var(--tooth-severe);}
+  .tm-swatch.nodata{background:var(--hair);}
+
+  .tm-hint{
+    text-align:center;font-size:12.5px;color:var(--ink);font-weight:500;
+    padding:12px 14px;border-radius:12px;background:var(--field-bg);border:1px solid var(--hair);
+    min-height:20px;
+  }
+  .tm-hint.placeholder{color:var(--muted);font-weight:400;}
+  .tm-unavailable{
+    text-align:center;font-size:12.5px;color:var(--muted);padding:20px;
+  }
+
+  /* ---------------- settings ---------------- */
+  .settings-grid{display:grid;grid-template-columns:1fr;gap:20px;max-width:640px;}
+  .settings-card{background:var(--card);border:1px solid var(--hair);border-radius:18px;padding:26px;transition:background-color .25s ease, border-color .25s ease;}
+  .settings-card h3{font-family:var(--font-display);font-size:1.12rem;font-weight:600;margin-bottom:4px;}
+  .settings-card .desc{color:var(--muted);font-size:12.5px;margin-bottom:18px;}
+  .field{margin-bottom:16px;}
+  .field:last-child{margin-bottom:0;}
+  .field label{font-size:12.5px;font-weight:600;color:var(--ink);display:block;margin-bottom:7px;}
+  .field input,.field select{
+    width:100%;padding:11px 14px;border-radius:10px;border:1px solid var(--hair);
+    font-size:13.5px;background:var(--field-bg);color:var(--ink);outline:none;
+    transition:border-color .15s ease, background-color .25s ease;
+  }
+  .field input:focus,.field select:focus{border-color:var(--violet-1);}
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+
+  .avatar-row{display:flex;align-items:center;gap:16px;margin-bottom:18px;}
+  .avatar-row .avatar{width:56px;height:56px;font-size:20px;border-radius:16px;}
+
+  .danger-card{border-color:rgba(240,85,106,0.25);background:rgba(240,85,106,0.03);}
+  .danger-card h3{color:var(--rose);}
+  .btn-danger{
+    font-weight:600;font-size:13px;color:var(--rose);border:1px solid rgba(240,85,106,0.35);
+    padding:10px 18px;border-radius:100px;background:rgba(240,85,106,0.06);
+  }
+
+  .theme-row{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border:1px solid var(--hair);border-radius:12px;background:var(--field-bg);}
+  .theme-row .t-label{font-size:13px;font-weight:600;}
+  .theme-row .t-sub{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .switch{position:relative;width:44px;height:25px;border-radius:100px;background:rgba(33,31,54,0.15);flex-shrink:0;transition:background-color .2s ease;}
+  .switch .knob{position:absolute;top:3px;left:3px;width:19px;height:19px;border-radius:50%;background:#fff;transition:transform .2s ease;box-shadow:0 2px 6px rgba(0,0,0,0.2);}
+  html[data-theme="dark"] .switch{background:linear-gradient(135deg,var(--violet-1),var(--violet-3));}
+  html[data-theme="dark"] .switch .knob{transform:translateX(19px);}
+
+  .toast{
+    position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:var(--card);padding:13px 22px;border-radius:100px;font-size:13px;font-weight:500;
+    opacity:0;pointer-events:none;transition:opacity .25s ease, transform .25s ease;
+    display:flex;align-items:center;gap:9px;z-index:200;box-shadow:0 20px 40px rgba(0,0,0,0.25);
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto;}
+  .toast .dotok{width:7px;height:7px;border-radius:50%;background:var(--mint);}
+
+  @media (max-width:900px){
+    .shell{grid-template-columns:1fr;}
+    .sidebar{position:relative;height:auto;flex-direction:row;align-items:center;overflow-x:auto;padding:14px 16px;}
+    .sidebar .logo-row{padding:0 14px 0 0;}
+    .nav-group{display:flex;gap:4px;margin-bottom:0;}
+    .nav-label{display:none;}
+    .nav-item{white-space:nowrap;}
+    .sidebar-bottom{display:none;}
+    .main{padding:22px 18px 50px;}
+    .action-row,.stats-row,.field-row,.diagnose-layout{grid-template-columns:1fr;}
+    .topbar{flex-wrap:wrap;}
+    .report-modal{max-height:96vh;border-radius:18px;}
+    .report-modal-head{padding:16px 18px;}
+    .report-tabs{padding:14px 18px 0;}
+    .report-modal-body{padding:14px 18px 8px;}
+    .report-modal-body img{max-height:38vh;}
+    .report-modal-overlay.fullscreen .report-modal-body img{max-height:52vh;}
+    .tooth-map-section{padding:8px 18px 22px;}
+    .tm-row{justify-content:flex-start;}
+    .tm-tooth{width:28px;height:36px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- ---------------- SIDEBAR ---------------- -->
+  <aside class="sidebar">
+    <div class="logo-row">
+      <a href="#" class="logo"><span class="dot"></span>PerioDx</a>
+      <button class="theme-toggle" id="themeToggle" type="button" title="Toggle theme" aria-label="Toggle light/dark theme">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="4"></circle>
+          <line x1="12" y1="1.5" x2="12" y2="4"></line>
+          <line x1="12" y1="20" x2="12" y2="22.5"></line>
+          <line x1="4.2" y1="4.2" x2="6" y2="6"></line>
+          <line x1="18" y1="18" x2="19.8" y2="19.8"></line>
+          <line x1="1.5" y1="12" x2="4" y2="12"></line>
+          <line x1="20" y1="12" x2="22.5" y2="12"></line>
+          <line x1="4.2" y1="19.8" x2="6" y2="18"></line>
+          <line x1="18" y1="6" x2="19.8" y2="4.2"></line>
+        </svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"></path>
+        </svg>
+      </button>
+    </div>
+
+    <div class="nav-group">
+      <span class="nav-label">Overview</span>
+      <button class="nav-item active" data-view="home">
+        <span class="ic">H</span> Home
+      </button>
+    </div>
+
+    <div class="nav-group">
+      <span class="nav-label">Diagnostics</span>
+      <button class="nav-item" data-view="diagnose">
+        <span class="ic">Dx</span> Diagnose
+      </button>
+    </div>
+
+    <div class="nav-group">
+      <span class="nav-label">Account</span>
+      <button class="nav-item" data-view="settings">
+        <span class="ic">⚙</span> Settings
+      </button>
+    </div>
+
+    <div class="sidebar-bottom">
+      <div class="profile-card">
+        <div class="avatar">
+          {{ user.first_name[0]|upper }}{{ user.last_name[0]|upper if user.last_name else '' }}
+        </div>
+        <div class="profile-meta">
+          <div class="name">{{ user.first_name }} {{ user.last_name if user.last_name else '' }}</div>
+          <div class="sub">{{ user.email }}</div>
+        </div>
+        <a href="/logout" class="logout" title="Log out">⏻</a>
+      </div>
+    </div>
+  </aside>
+
+  {% include '_flash.html' %}
+
+  <!-- ---------------- MAIN ---------------- -->
+  <main class="main">
+
+    <!-- ===== HOME ===== -->
+    <section class="view active" id="view-home">
+      <div class="topbar">
+        <h1 id="pageTitle">Home</h1>
+        <div class="search"><span>⌕</span><input type="text" placeholder="Search scans…"></div>
+      </div>
+
+      <div class="greet-block">
+        <span class="tag">● Model online</span>
+        <h2 id="greeting">Welcome, {{ user.first_name }}</h2>
+        <p>PerioDx screens panoramic radiographs for periodontal bone loss and flags areas worth a closer look. Upload a scan to get started.</p>
+      </div>
+
+      <div class="action-row">
+        <div class="action-card diagnose">
+          <div class="ic-big">Dx</div>
+          <h3>New diagnosis</h3>
+          <p>Upload a panoramic X-ray and run it through the PerioDx model to screen for periodontal disease markers.</p>
+          <button class="go" onclick="goToView('diagnose')">Start diagnosis →</button>
+        </div>
+        <div class="action-card history">
+          <div class="ic-big">↺</div>
+          <h3>Diagnosis history</h3>
+          <p>Review past scans, model outputs, and notes from previous sessions.</p>
+          <button class="go" onclick="window.location.href='/diagnosis_history'">View history →</button>
+        </div>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="n">{{ scan_count|default(0) }}</div>
+          <div class="l">Scans analyzed</div>
+        </div>
+        <div class="stat-card">
+          <div class="n">{{ flagged_count|default(0) }}</div>
+          <div class="l">Flagged for review</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== DIAGNOSE ===== -->
+    <section class="view" id="view-diagnose">
+      <div class="topbar">
+        <h1>Diagnose</h1>
+      </div>
+
+      <div class="section-top">
+        <div>
+          <h2>Panoramic X-ray analysis</h2>
+          <p>Upload a panoramic dental radiograph, then run the diagnostic pipeline to screen for periodontal bone loss.</p>
+        </div>
+      </div>
+
+      <div class="diagnose-layout">
+        <!-- Upload / preview -->
+        <div class="upload-card">
+          <h3>1. Upload image</h3>
+          <div class="desc">JPG or PNG panoramic radiograph works best.</div>
+
+          <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="Upload a panoramic X-ray image">
+            <div class="dz-ic">↥</div>
+            <div class="dz-title">Drag &amp; drop a panoramic image here</div>
+            <div class="dz-sub">or click to browse your files</div>
+          </div>
+
+          <div id="previewWrap" class="preview-wrap" style="display:none;">
+            <img id="previewImg" alt="Uploaded panoramic X-ray preview">
+            <div class="preview-meta">
+              <span class="fname" id="previewName"></span>
+              <button type="button" class="remove" onclick="clearImage()">Remove</button>
+            </div>
+          </div>
+
+          <input type="file" id="fileInput" accept="image/*" style="display:none;">
+        </div>
+
+        <!-- Pipeline / results -->
+        <div class="pipeline-card">
+          <h3>2. Run diagnostic pipeline</h3>
+          <div class="desc">Runs the fine-tuned periodontal model against the uploaded scan.</div>
+
+          <ul class="pipeline-steps" id="pipelineSteps">
+            <li id="stepUpload"><span class="dotidle"></span> Image uploaded</li>
+            <li id="stepAnalyze"><span class="dotidle"></span> Analyzing radiograph</li>
+            <li id="stepReport"><span class="dotidle"></span> Generating report</li>
+          </ul>
+
+          <button class="btn-primary" id="runPipelineBtn" disabled onclick="runDiagnosticPipeline()">
+            Run diagnostic pipeline
+          </button>
+
+          <div class="results-panel" id="resultsPanel">
+            <div class="r-head"><h4 id="resultsTitle">Result</h4></div>
+            <div class="r-body" id="resultsBody"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== SETTINGS ===== -->
+    <section class="view" id="view-settings">
+      <div class="topbar">
+        <h1>Settings</h1>
+      </div>
+
+      <div class="settings-grid">
+        <div class="settings-card">
+          <h3>Profile Details</h3>
+          <div class="desc">Your profile information loaded from the PerioDx database.</div>
+          <div class="avatar-row">
+            <div class="avatar">
+              {{ user.first_name[0]|upper }}{{ user.last_name[0]|upper if user.last_name else '' }}
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label>First name</label><input type="text" value="{{ user.first_name }}" readonly></div>
+            <div class="field"><label>Last name</label><input type="text" value="{{ user.last_name or '' }}" readonly></div>
+          </div>
+          <div class="field"><label>Email address</label><input type="email" value="{{ user.email }}" readonly></div>
+        </div>
+
+        <div class="settings-card">
+          <h3>Appearance</h3>
+          <div class="desc">Choose how PerioDx looks on this device.</div>
+          <div class="theme-row">
+            <div>
+              <div class="t-label" id="themeRowLabel">Dark mode</div>
+              <div class="t-sub">Switch between light and dark theme</div>
+            </div>
+            <div class="switch" id="themeSwitch" role="switch" aria-checked="false" tabindex="0"><div class="knob"></div></div>
+          </div>
+        </div>
+
+        <div class="settings-card danger-card">
+          <h3>Session Info</h3>
+          <div class="desc">Account Provider: {{ user.auth_provider }}</div>
+          <a href="/logout" class="btn-danger" style="display:inline-block; text-align:center;">Log out</a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ---------------- REPORT MODAL ---------------- -->
+<div class="report-modal-overlay" id="reportModalOverlay">
+  <div class="report-modal">
+    <div class="report-modal-head">
+      <h3>Diagnostic report</h3>
+      <div class="report-modal-head-actions">
+        <button class="report-modal-icon-btn report-modal-fullscreen-btn" id="reportFullscreenBtn" onclick="toggleReportFullscreen()" type="button" aria-label="Toggle fullscreen" title="Toggle fullscreen">
+          <svg class="icon-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 3 21 3 21 9"></polyline>
+            <polyline points="9 21 3 21 3 15"></polyline>
+            <line x1="21" y1="3" x2="14" y2="10"></line>
+            <line x1="3" y1="21" x2="10" y2="14"></line>
+          </svg>
+          <svg class="icon-collapse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4 14 10 14 10 20"></polyline>
+            <polyline points="20 10 14 10 14 4"></polyline>
+            <line x1="14" y1="10" x2="21" y2="3"></line>
+            <line x1="3" y1="21" x2="10" y2="14"></line>
+          </svg>
+        </button>
+        <button class="report-modal-icon-btn report-modal-close" onclick="closeReportModal()" aria-label="Close report" title="Close">✕</button>
+      </div>
+    </div>
+
+    <div class="report-modal-scroll">
+      <div class="report-tabs" id="reportTabs">
+        <button class="report-tab active" data-img="combined" type="button">Combined</button>
+        <button class="report-tab" data-img="model_a" type="button">Tooth detection</button>
+        <button class="report-tab" data-img="model_b" type="button">CEJ line</button>
+        <button class="report-tab" data-img="model_c" type="button">Bone level</button>
+      </div>
+      <div class="report-modal-body">
+        <div class="rm-frame">
+          <img id="reportModalImg" alt="Diagnostic report image">
+        </div>
+      </div>
+
+      <div class="tooth-map-section" id="toothMapSection">
+        <div class="tm-header"><span class="tm-title">Per-tooth map</span></div>
+
+        <div id="tmUnavailable" class="tm-unavailable" style="display:none;">Per-tooth data is not available for this scan.</div>
+
+        <div id="tmContent">
+          <div class="tm-jaw-label">Upper jaw</div>
+          <div class="tm-row" id="tmUpperRow"></div>
+
+          <div class="tm-jaw-label">Lower jaw</div>
+          <div class="tm-row" id="tmLowerRow"></div>
+
+          <div class="tm-legend">
+            <span class="tm-leg-item"><span class="tm-swatch normal"></span>Normal (&lt;15%)</span>
+            <span class="tm-leg-item"><span class="tm-swatch mild"></span>Mild (15–33%)</span>
+            <span class="tm-leg-item"><span class="tm-swatch moderate"></span>Moderate (33–50%)</span>
+            <span class="tm-leg-item"><span class="tm-swatch severe"></span>Severe (&gt;50%)</span>
+            <span class="tm-leg-item"><span class="tm-swatch nodata"></span>No data</span>
+          </div>
+
+          <div class="tm-hint placeholder" id="tmHint">Hover or click any tooth to view bone loss %</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="dotok"></span><span id="toastMsg">Done</span></div>
+
+<script>
+  // ---------------- Theme (light / dark) ----------------
+  const THEME_KEY = 'periodx-theme';
+  const rootEl = document.documentElement;
+  const themeToggleBtn = document.getElementById('themeToggle');
+  const themeSwitch = document.getElementById('themeSwitch');
+  const themeRowLabel = document.getElementById('themeRowLabel');
+
+  function applyTheme(theme){
+    rootEl.setAttribute('data-theme', theme);
+    if (themeSwitch) themeSwitch.setAttribute('aria-checked', theme === 'dark' ? 'true' : 'false');
+    if (themeRowLabel) themeRowLabel.textContent = theme === 'dark' ? 'Dark mode' : 'Light mode';
+    if (themeToggleBtn) themeToggleBtn.title = theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+  }
+
+  function setTheme(theme){
+    applyTheme(theme);
+    try { localStorage.setItem(THEME_KEY, theme); } catch(e) {}
+  }
+
+  function toggleTheme(){
+    const current = rootEl.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    setTheme(current === 'dark' ? 'light' : 'dark');
+  }
+
+  (function initTheme(){
+    let saved = null;
+    try { saved = localStorage.getItem(THEME_KEY); } catch(e) {}
+    if (saved === 'dark' || saved === 'light') {
+      applyTheme(saved);
+    } else {
+      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      applyTheme(prefersDark ? 'dark' : 'light');
+    }
+  })();
+
+  themeToggleBtn.addEventListener('click', toggleTheme);
+  themeSwitch.addEventListener('click', toggleTheme);
+  themeSwitch.addEventListener('keydown', (e)=>{
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleTheme(); }
+  });
+
+  // ---------------- Navigation switching ----------------
+  function goToView(view){
+    document.querySelectorAll('.nav-item[data-view]').forEach(b=>b.classList.toggle('active', b.dataset.view === view));
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    document.getElementById('view-'+view).classList.add('active');
+  }
+  document.querySelectorAll('.nav-item[data-view]').forEach(btn=>{
+    btn.addEventListener('click', ()=> goToView(btn.dataset.view));
+  });
+
+  // ---------------- Toast notification system ----------------
+  let toastTimer;
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    document.getElementById('toastMsg').textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=>t.classList.remove('show'), 2600);
+  }
+
+  // ---------------- Report modal ----------------
+  let lastReportImages = null;
+  let lastReportTeeth = null;
+  const reportModalOverlay = document.getElementById('reportModalOverlay');
+  const reportModalImg = document.getElementById('reportModalImg');
+  const reportFullscreenBtn = document.getElementById('reportFullscreenBtn');
+  const tmUnavailable = document.getElementById('tmUnavailable');
+  const tmContent = document.getElementById('tmContent');
+  const tmUpperRow = document.getElementById('tmUpperRow');
+  const tmLowerRow = document.getElementById('tmLowerRow');
+  const tmHint = document.getElementById('tmHint');
+
+  function openReportModal(images, teeth){
+    lastReportImages = images;
+    lastReportTeeth = teeth || null;
+    document.querySelectorAll('.report-tab').forEach(t => t.classList.toggle('active', t.dataset.img === 'combined'));
+    reportModalImg.src = (images && images.combined) || '';
+    renderToothMap(lastReportTeeth);
+    reportModalOverlay.classList.remove('fullscreen');
+    reportFullscreenBtn.setAttribute('aria-label', 'Enter fullscreen');
+    reportFullscreenBtn.title = 'Enter fullscreen';
+    reportModalOverlay.classList.add('show');
+  }
+  function closeReportModal(){
+    // Drop out of the browser's real fullscreen (if active) before hiding the modal
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(()=>{});
+    }
+    reportModalOverlay.classList.remove('show');
+    reportModalOverlay.classList.remove('fullscreen');
+  }
+  reportModalOverlay.addEventListener('click', (e) => {
+    if (e.target === reportModalOverlay) closeReportModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && reportModalOverlay.classList.contains('show')) closeReportModal();
+  });
+  document.querySelectorAll('.report-tab').forEach(tab=>{
+    tab.addEventListener('click', ()=>{
+      if (!lastReportImages) return;
+      document.querySelectorAll('.report-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      reportModalImg.src = lastReportImages[tab.dataset.img] || '';
+    });
+  });
+
+  function toggleReportFullscreen(){
+    const willBeFullscreen = !reportModalOverlay.classList.contains('fullscreen');
+    reportModalOverlay.classList.toggle('fullscreen', willBeFullscreen);
+    reportFullscreenBtn.setAttribute('aria-label', willBeFullscreen ? 'Exit fullscreen' : 'Enter fullscreen');
+    reportFullscreenBtn.title = willBeFullscreen ? 'Exit fullscreen' : 'Enter fullscreen';
+
+    // Also request true browser fullscreen where supported, so the report
+    // takes over the whole screen (not just the viewport within the tab).
+    // Falls back silently to the CSS-based fullscreen above if unsupported
+    // or blocked (e.g. inside an iframe without the "allowfullscreen" flag).
+    if (willBeFullscreen) {
+      if (reportModalOverlay.requestFullscreen) {
+        reportModalOverlay.requestFullscreen().catch(()=>{});
+      }
+    } else {
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(()=>{});
+      }
+    }
+  }
+  // Keep the button/icon state in sync if the user exits fullscreen via
+  // the browser's own UI (e.g. pressing Esc while in real fullscreen).
+  document.addEventListener('fullscreenchange', ()=>{
+    if (!document.fullscreenElement) {
+      reportModalOverlay.classList.remove('fullscreen');
+      reportFullscreenBtn.setAttribute('aria-label', 'Enter fullscreen');
+      reportFullscreenBtn.title = 'Enter fullscreen';
+    }
+  });
+
+  // ---------------- Per-tooth map ----------------
+  function statusClass(status){
+    if (status === 'normal') return 'normal';
+    if (status === 'mild') return 'mild';
+    if (status === 'moderate') return 'moderate';
+    if (status === 'severe') return 'severe';
+    return 'nodata'; // covers "missing" (no tooth detected) and "unmeasured"
+  }
+
+  function statusLabel(status){
+    switch(status){
+      case 'normal': return 'Normal';
+      case 'mild': return 'Mild';
+      case 'moderate': return 'Moderate';
+      case 'severe': return 'Severe';
+      case 'unmeasured': return 'no measurement available';
+      default: return 'not detected';
+    }
+  }
+
+  function renderToothRow(container, teethArr, jawLabel){
+    container.innerHTML = '';
+    teethArr.forEach((t, i) => {
+      const cls = statusClass(t.status);
+      const box = document.createElement('div');
+      box.className = 'tm-tooth ' + cls;
+      box.dataset.pos = i + 1;
+
+      const hasData = (cls !== 'nodata');
+      if (hasData) {
+        box.tabIndex = 0;
+        const showInfo = () => {
+          document.querySelectorAll('.tm-tooth.selected').forEach(el => el.classList.remove('selected'));
+          box.classList.add('selected');
+          tmHint.classList.remove('placeholder');
+          tmHint.textContent = `${jawLabel} tooth #${i + 1}: ${t.bone_loss_pct}% bone loss — ${statusLabel(t.status)}`;
+        };
+        box.addEventListener('mouseenter', showInfo);
+        box.addEventListener('focus', showInfo);
+        box.addEventListener('click', showInfo);
+      } else {
+        const showInfo = () => {
+          document.querySelectorAll('.tm-tooth.selected').forEach(el => el.classList.remove('selected'));
+          tmHint.classList.remove('placeholder');
+          tmHint.textContent = `${jawLabel} tooth #${i + 1}: ${statusLabel(t.status)}`;
+        };
+        box.addEventListener('mouseenter', showInfo);
+      }
+
+      container.appendChild(box);
+    });
+  }
+
+  function renderToothMap(teeth){
+    tmHint.classList.add('placeholder');
+    tmHint.textContent = 'Hover or click any tooth to view bone loss %';
+
+    if (!teeth || !teeth.upper || !teeth.lower) {
+      tmContent.style.display = 'none';
+      tmUnavailable.style.display = 'block';
+      return;
+    }
+
+    tmUnavailable.style.display = 'none';
+    tmContent.style.display = 'block';
+    renderToothRow(tmUpperRow, teeth.upper, 'Upper');
+    renderToothRow(tmLowerRow, teeth.lower, 'Lower');
+  }
+
+  // ---------------- Diagnose: upload + pipeline ----------------
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const previewWrap = document.getElementById('previewWrap');
+  const previewImg = document.getElementById('previewImg');
+  const previewName = document.getElementById('previewName');
+  const runPipelineBtn = document.getElementById('runPipelineBtn');
+  const resultsPanel = document.getElementById('resultsPanel');
+  const resultsTitle = document.getElementById('resultsTitle');
+  const resultsBody = document.getElementById('resultsBody');
+  const stepUpload = document.getElementById('stepUpload');
+  const stepAnalyze = document.getElementById('stepAnalyze');
+  const stepReport = document.getElementById('stepReport');
+
+  let selectedFile = null;
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+  });
+  ['dragenter','dragover'].forEach(evt=>{
+    dropzone.addEventListener(evt, (e)=>{ e.preventDefault(); dropzone.classList.add('drag'); });
+  });
+  ['dragleave','drop'].forEach(evt=>{
+    dropzone.addEventListener(evt, (e)=>{ e.preventDefault(); dropzone.classList.remove('drag'); });
+  });
+  dropzone.addEventListener('drop', (e)=>{
+    const file = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  });
+  fileInput.addEventListener('change', (e)=>{
+    const file = e.target.files && e.target.files[0];
+    if (file) handleFile(file);
+  });
+
+  function handleFile(file){
+    if (!file.type.startsWith('image/')) {
+      showToast('Please upload an image file');
+      return;
+    }
+    selectedFile = file;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      previewImg.src = e.target.result;
+      previewName.textContent = file.name;
+      dropzone.style.display = 'none';
+      previewWrap.style.display = 'block';
+      runPipelineBtn.disabled = false;
+      stepUpload.classList.add('done');
+      stepAnalyze.classList.remove('active','done');
+      stepReport.classList.remove('active','done');
+      resultsPanel.classList.remove('show','error');
+      lastReportImages = null;
+      lastReportTeeth = null;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearImage(){
+    selectedFile = null;
+    fileInput.value = '';
+    previewWrap.style.display = 'none';
+    dropzone.style.display = 'block';
+    runPipelineBtn.disabled = true;
+    runPipelineBtn.textContent = 'Run diagnostic pipeline';
+    [stepUpload, stepAnalyze, stepReport].forEach(s => s.classList.remove('done','active'));
+    resultsPanel.classList.remove('show','error');
+    lastReportImages = null;
+    lastReportTeeth = null;
+  }
+
+  async function runDiagnosticPipeline(){
+    if (!selectedFile) return;
+    runPipelineBtn.disabled = true;
+    runPipelineBtn.textContent = 'Analyzing…';
+    resultsPanel.classList.remove('show','error');
+    stepAnalyze.classList.add('active');
+
+    const formData = new FormData();
+    formData.append('image', selectedFile);
+
+    try {
+      // Flask forwards this to the Colab/ngrok model server's /predict endpoint
+      const response = await fetch('/api/diagnose', { method: 'POST', body: formData });
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || ('Pipeline request failed (' + response.status + ')'));
+      }
+
+      stepAnalyze.classList.remove('active');
+      stepAnalyze.classList.add('done');
+      stepReport.classList.add('done');
+
+      lastReportImages = data.images;
+      lastReportTeeth = data.teeth || null;
+
+      resultsTitle.textContent = 'Diagnostic result';
+      resultsBody.innerHTML = '';
+
+      const summary = document.createElement('p');
+      summary.textContent = 'Radiograph analyzed successfully. Four model views and a per-tooth bone-loss map are ready.';
+      resultsBody.appendChild(summary);
+
+      const seeReportBtn = document.createElement('button');
+      seeReportBtn.type = 'button';
+      seeReportBtn.className = 'btn-primary';
+      seeReportBtn.textContent = 'See report';
+      seeReportBtn.onclick = () => openReportModal(lastReportImages, lastReportTeeth);
+      resultsBody.appendChild(seeReportBtn);
+
+      resultsPanel.classList.add('show');
+      showToast('Diagnostic pipeline complete');
+    } catch (err) {
+      stepAnalyze.classList.remove('active');
+      resultsPanel.classList.add('show','error');
+      resultsTitle.textContent = 'Pipeline unavailable';
+      resultsBody.textContent = 'Could not complete diagnosis (' + err.message + ').';
+      showToast('Pipeline request failed');
+    } finally {
+      runPipelineBtn.disabled = false;
+      runPipelineBtn.textContent = 'Run diagnostic pipeline';
+    }
+  }
+
+  // Dynamic greeting by time of day
+  (function(){
+    const h = new Date().getHours();
+    const g = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+    document.getElementById('greeting').textContent = g + ', {{ user.first_name }}';
+  })();
+</script>
+
+</body>
+</html>

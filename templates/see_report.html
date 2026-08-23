@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PerioDx — Report</title>
+<style>
+  body{font-family:sans-serif;background:#0a0c12;color:#eef1f8;padding:30px;}
+  h1{font-weight:600;margin-bottom:4px;}
+  .sub{color:#8992ab;font-size:13px;margin-bottom:24px;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:1000px;}
+  .card{background:#161a24;border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:14px;}
+  .card h3{font-size:13px;margin-bottom:8px;font-weight:600;color:#7fa8ff;}
+  .card img{width:100%;border-radius:8px;display:block;background:#000;}
+  a.back{color:#7fa8ff;font-size:13px;display:inline-block;margin-bottom:20px;}
+</style>
+</head>
+<body>
+  <a class="back" href="/dashboard_user">&larr; Back to dashboard</a>
+  <h1>Diagnostic report</h1>
+  <div class="sub">Generated {{ report.created_at }} &middot; ID {{ report.id }}</div>
+  <div class="grid">
+    <div class="card">
+      <h3>Combined annotation</h3>
+      <img src="{{ report.images.combined }}" alt="Combined annotated result">
+    </div>
+    <div class="card">
+      <h3>Tooth detection</h3>
+      <img src="{{ report.images.model_a }}" alt="Tooth detection model output">
+    </div>
+    <div class="card">
+      <h3>CEJ line</h3>
+      <img src="{{ report.images.model_b }}" alt="CEJ line model output">
+    </div>
+    <div class="card">
+      <h3>Bone level / AC segmentation</h3>
+      <img src="{{ report.images.model_c }}" alt="Bone level segmentation model output">
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,10 @@
+Flask
+Flask-SQLAlchemy
+Flask-Mail
+Werkzeug
+qrcode
+PyMySQL
+python-dotenv
+SQLAlchemy
+google-auth
+itsdangerous

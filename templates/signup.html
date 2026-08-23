@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign up — PerioDx</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --violet-1:#6a5ff0;
+    --violet-2:#8b5cf6;
+    --violet-3:#4f46e5;
+    --ink:#211f36;
+    --muted:#6b6885;
+    --card:#ffffff;
+    --hair:rgba(33,31,54,0.08);
+    --mint:#00c896;
+    --danger:#e0455a;
+    --font-display:'Fraunces', serif;
+    --font-body:'Inter', sans-serif;
+    --font-mono:'JetBrains Mono', monospace;
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box;}
+
+  body{
+    font-family:var(--font-body);
+    color:var(--ink);
+    background:
+      radial-gradient(1100px 600px at 85% -10%, rgba(139,92,246,0.16), transparent),
+      radial-gradient(900px 500px at -10% 20%, rgba(106,95,240,0.14), transparent),
+      #f7f6fb;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:28px;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  a{color:inherit;}
+
+  .card{
+    width:100%;
+    max-width:420px;
+    background:var(--card);
+    border:1px solid var(--hair);
+    border-radius:22px;
+    box-shadow:0 30px 70px rgba(76,63,180,0.14);
+    padding:40px 36px 32px;
+  }
+
+  .brand{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:9px;
+    margin-bottom:26px;
+  }
+  .brand .dot{
+    width:9px;height:9px;border-radius:2px;
+    background:linear-gradient(135deg,var(--violet-1),var(--mint));
+  }
+  .brand span{
+    font-family:var(--font-display);font-weight:600;font-size:19px;letter-spacing:-0.01em;
+  }
+
+  h1{
+    font-family:var(--font-display);
+    font-weight:600;
+    font-size:1.7rem;
+    text-align:center;
+    letter-spacing:-0.01em;
+    margin-bottom:6px;
+  }
+  .sub{
+    text-align:center;
+    color:var(--muted);
+    font-size:0.94rem;
+    margin-bottom:28px;
+  }
+
+  /* Form Step Visibility */
+  .step { display: none; }
+  .step.active { display: block; }
+
+  form{display:flex;flex-direction:column;gap:16px;}
+
+  .field-group {
+    display: flex;
+    gap: 12px;
+  }
+  .field-group .field {
+    flex: 1;
+  }
+
+  .field label{
+    display:block;
+    font-size:13px;
+    font-weight:600;
+    margin-bottom:7px;
+    color:var(--ink);
+  }
+  .field label .optional{
+    font-weight:400;
+    color:var(--muted);
+    font-size:12px;
+    margin-left:4px;
+  }
+  .field input{
+    width:100%;
+    padding:13px 15px;
+    border:1.5px solid var(--hair);
+    border-radius:11px;
+    font-size:15px;
+    font-family:var(--font-body);
+    color:var(--ink);
+    background:#fbfaff;
+    transition:border-color .2s ease, box-shadow .2s ease, background .2s ease;
+  }
+  .field input::placeholder{color:#a9a6bd;}
+  .field input:focus{
+    outline:none;
+    border-color:var(--violet-1);
+    background:#fff;
+    box-shadow:0 0 0 4px rgba(106,95,240,0.12);
+  }
+  .field input.invalid{border-color:var(--danger);animation:shake .4s ease-in-out;}
+  @keyframes shake{25%{transform:translateX(-5px);}75%{transform:translateX(5px);}}
+
+  .btn-primary{
+    margin-top:6px;
+    width:100%;
+    padding:14px;
+    border:none;
+    border-radius:11px;
+    font-size:15px;
+    font-weight:600;
+    color:#fff;
+    background:linear-gradient(135deg,var(--violet-1),var(--violet-3));
+    box-shadow:0 12px 26px rgba(106,95,240,0.28);
+    cursor:pointer;
+    transition:transform .2s ease, box-shadow .2s ease, opacity .2s ease;
+  }
+  .btn-primary:hover{transform:translateY(-1px);box-shadow:0 16px 34px rgba(106,95,240,0.34);}
+  .btn-primary:disabled{opacity:0.65;cursor:not-allowed;transform:none;}
+
+  .divider{
+    display:flex;align-items:center;gap:14px;
+    color:var(--muted);font-size:12px;
+    margin:22px 0 18px;
+  }
+  .divider::before,.divider::after{
+    content:'';flex:1;height:1px;background:var(--hair);
+  }
+
+  .btn-google{
+    width:100%;
+    padding:12px;
+    border:1.5px solid var(--hair);
+    border-radius:11px;
+    background:#fff;
+    font-size:14.5px;
+    font-weight:600;
+    color:var(--ink);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    cursor:pointer;
+    transition:border-color .2s ease, transform .2s ease, box-shadow .2s ease;
+  }
+  .btn-google:hover{border-color:#d5d2e8;transform:translateY(-1px);box-shadow:0 8px 20px rgba(33,31,54,0.06);}
+  .btn-google svg{width:18px;height:18px;}
+
+  .switch{
+    text-align:center;
+    margin-top:26px;
+    font-size:13.5px;
+    color:var(--muted);
+  }
+  .switch a{color:var(--violet-3);font-weight:600;}
+  .switch a:hover{text-decoration:underline;}
+
+  /* OTP Verification Styles */
+  .otp-info {
+    background: #f1effd;
+    border: 1px solid rgba(106, 95, 240, 0.2);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    color: var(--ink);
+    line-height: 1.4;
+  }
+  .otp-input {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin: 24px 0;
+  }
+  .otp-digit {
+    width: 44px;
+    height: 50px;
+    text-align: center;
+    border: 1.5px solid var(--hair);
+    border-radius: 11px;
+    font-size: 20px;
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--ink);
+    background: #fbfaff;
+    transition: border-color .2s ease, box-shadow .2s ease;
+  }
+  .otp-digit:focus {
+    outline: none;
+    border-color: var(--violet-1);
+    background: #fff;
+    box-shadow: 0 0 0 4px rgba(106, 95, 240, 0.12);
+  }
+  .resend-container {
+    text-align: center;
+    margin-top: 14px;
+  }
+  .resend-otp {
+    color: var(--violet-3);
+    font-size: 13.5px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .resend-otp:hover {
+    text-decoration: underline;
+  }
+
+  .toast{
+    position:fixed;top:22px;right:22px;
+    background:var(--ink);color:#fff;
+    padding:13px 20px;border-radius:10px;
+    font-size:13.5px;font-weight:500;
+    box-shadow:0 14px 30px rgba(33,31,54,0.22);
+    z-index:999;
+    animation:toastIn .25s ease-out;
+    max-width:300px;
+  }
+  .toast.success{background:var(--mint);}
+  .toast.error{background:var(--danger);}
+  @keyframes toastIn{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:translateY(0);}}
+
+  @media (max-width:460px){
+    .card{padding:32px 24px 26px;border-radius:18px;}
+    .field-group { flex-direction: column; gap: 16px; }
+    .otp-digit { width: 38px; height: 46px; font-size: 18px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="brand"><span class="dot"></span><span>PerioDx</span></div>
+
+  <!-- STEP 1: Registration Form -->
+  <div id="signup-step" class="step active">
+    <h1>Create an account</h1>
+    <p class="sub">Sign up to get started with PerioDx.</p>
+
+    <form id="signup-form" novalidate onsubmit="handleSignup(event)">
+      <div class="field-group">
+        <div class="field">
+          <label for="first-name">First name</label>
+          <input type="text" id="first-name" name="firstName" placeholder="John" required>
+        </div>
+        <div class="field">
+          <label for="last-name">Last name <span class="optional">(optional)</span></label>
+          <input type="text" id="last-name" name="lastName" placeholder="Doe">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="email">Email address</label>
+        <input type="email" id="email" name="email" placeholder="you@college.edu" required>
+      </div>
+
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" placeholder="Create a password" required>
+      </div>
+
+      <button type="submit" class="btn-primary" id="submit-btn">Create account</button>
+    </form>
+
+    <div class="divider">or</div>
+
+    <!-- Empty container. Google will automatically inject its own standard button here -->
+    <div id="google-btn-container" style="display: flex; justify-content: center; width: 100%;"></div>
+
+    <p class="switch">Already have an account? <a href="/login">Log in</a></p>
+  </div>
+
+  <!-- STEP 2: Verification Step -->
+  <div id="verification-step" class="step">
+    <h1>Verify Email</h1>
+    <p class="sub">We sent a 6-digit code to <br><strong id="email-display" style="color:var(--ink);"></strong></p>
+
+    <div class="otp-info">
+      📧 Enter the 6-digit OTP sent to your email to verify your account.
+    </div>
+
+    <div class="otp-input">
+      <input type="text" class="otp-digit" maxlength="1" oninput="moveToNext(this, 0)">
+      <input type="text" class="otp-digit" maxlength="1" oninput="moveToNext(this, 1)">
+      <input type="text" class="otp-digit" maxlength="1" oninput="moveToNext(this, 2)">
+      <input type="text" class="otp-digit" maxlength="1" oninput="moveToNext(this, 3)">
+      <input type="text" class="otp-digit" maxlength="1" oninput="moveToNext(this, 4)">
+      <input type="text" class="otp-digit" maxlength="1" oninput="moveToNext(this, 5)">
+    </div>
+
+    <button type="button" onclick="verifyOTP()" class="btn-primary" id="verify-btn">Verify OTP</button>
+
+    <div class="resend-container">
+      <a class="resend-otp" onclick="resendOTP()">Resend OTP</a>
+    </div>
+
+    <p class="switch">Already verified? <a href="/login">Log in</a></p>
+  </div>
+</div>
+
+<!-- Load Google Identity Services with onload callback -->
+<script src="https://accounts.google.com/gsi/client" async defer onload="initGoogle()"></script>
+
+<script>
+  function showToast(msg, type){
+    const t = document.createElement('div');
+    t.className = 'toast' + (type ? ' ' + type : '');
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => { t.style.opacity = '0'; t.style.transition='opacity .25s'; setTimeout(()=>t.remove(),250); }, 2600);
+  }
+
+  function validatePassword(password) {
+    if (password.length < 6) {
+      showToast('Password must be at least 6 characters.', 'error');
+      return false;
+    }
+    return true;
+  }
+
+  function validateEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      showToast('Please enter a valid email address.', 'error');
+      return false;
+    }
+    return true;
+  }
+
+  function handleSignup(event) {
+    event.preventDefault();
+    const firstName = document.getElementById('first-name');
+    const lastName = document.getElementById('last-name');
+    const email = document.getElementById('email');
+    const password = document.getElementById('password');
+    const btn = document.getElementById('submit-btn');
+
+    let valid = true;
+    [firstName, email, password].forEach(f => {
+      if (!f.value.trim()){
+        f.classList.add('invalid');
+        valid = false;
+        setTimeout(() => f.classList.remove('invalid'), 500);
+      }
+    });
+
+    if (!valid){
+      showToast('Please fill in all required fields', 'error');
+      return;
+    }
+
+    if (!validateEmail(email.value.trim())) return;
+    if (!validatePassword(password.value.trim())) return;
+
+    btn.textContent = 'Creating account…';
+    btn.disabled = true;
+
+    fetch('/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        firstName: firstName.value.trim(),
+        lastName: lastName.value.trim(),
+        email: email.value.trim(),
+        password: password.value.trim()
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      btn.textContent = 'Create account';
+      btn.disabled = false;
+
+      if (data.message) {
+        showToast(data.message, 'success');
+
+        document.getElementById('signup-step').classList.remove('active');
+        document.getElementById('verification-step').classList.add('active');
+        document.getElementById('email-display').textContent = email.value.trim();
+
+        document.querySelector('.otp-digit').focus();
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      btn.textContent = 'Create account';
+      btn.disabled = false;
+      showToast('Something went wrong. Please try again.', 'error');
+    });
+  }
+
+  function moveToNext(current, index) {
+    if (current.value.length === 1) {
+      const nextInput = current.parentNode.children[index + 1];
+      if (nextInput) {
+        nextInput.focus();
+      }
+    }
+  }
+
+  function verifyOTP() {
+    const otpInputs = document.querySelectorAll('.otp-digit');
+    let otp = '';
+    otpInputs.forEach(input => { otp += input.value; });
+
+    if (otp.length !== 6) {
+      showToast('Please enter the complete 6-digit OTP.', 'error');
+      return;
+    }
+
+    const email = document.getElementById('email-display').textContent;
+    const verifyBtn = document.getElementById('verify-btn');
+    verifyBtn.textContent = 'Verifying…';
+    verifyBtn.disabled = true;
+
+    fetch('/verify-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, otp })
+    })
+    .then(response => response.json())
+    .then(data => {
+      verifyBtn.textContent = 'Verify OTP';
+      verifyBtn.disabled = false;
+
+      if (data.message) {
+        showToast(data.message, data.message.includes('successfully') ? 'success' : 'error');
+
+        if (data.message.includes('successfully')) {
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 1500);
+        }
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      verifyBtn.textContent = 'Verify OTP';
+      verifyBtn.disabled = false;
+      showToast('Verification failed. Try again.', 'error');
+    });
+  }
+
+  function resendOTP() {
+    const email = document.getElementById('email-display').textContent;
+
+    fetch('/resend-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.message) {
+        showToast(data.message, 'success');
+
+        const otpInputs = document.querySelectorAll('.otp-digit');
+        otpInputs.forEach(input => input.value = '');
+        otpInputs[0].focus();
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      showToast('Failed to resend OTP.', 'error');
+    });
+  }
+
+
+  // Initialize Google Auth
+  function initGoogle() {
+    google.accounts.id.initialize({
+      client_id: "656588864375-6ba1to3g9t53slco1urn3290iac1p7nd.apps.googleusercontent.com",
+      callback: handleGoogleResponse,
+      auto_select: true // 1. ADD THIS: Tells Google to auto-login returning users
+    });
+
+    const googleBtnContainer = document.getElementById('google-btn-container');
+    if (googleBtnContainer) {
+      google.accounts.id.renderButton(
+        googleBtnContainer,
+        {
+          theme: 'outline',
+          size: 'large',
+          width: googleBtnContainer.offsetWidth
+        }
+      );
+    }
+
+    // 2. ADD THIS: Triggers the seamless One Tap slide-in prompt
+    google.accounts.id.prompt();
+  }
+
+
+
+//   // Initialize Google Auth
+//   function initGoogle() {
+//     google.accounts.id.initialize({
+//       client_id: "593311499357-ehphsm15aei4bvlvtj1443f35o2opopf.apps.googleusercontent.com",
+//       callback: handleGoogleResponse
+//     });
+
+//     const googleBtnContainer = document.getElementById('google-btn-container');
+//     if (googleBtnContainer) {
+//       google.accounts.id.renderButton(
+//         googleBtnContainer,
+//         {
+//           theme: 'outline',
+//           size: 'large',
+//           width: googleBtnContainer.offsetWidth
+//         }
+//       );
+//     }
+//   }
+
+  async function handleGoogleResponse(response) {
+    const id_token = response.credential;
+
+    // Show an initial toast so the user knows something is happening
+    showToast('Connecting securely...', '');
+
+    try {
+    const res = await fetch('/google-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_token: id_token })
+    });
+
+    // Catch backend crashes (500 errors) before trying to parse JSON
+    if (!res.ok) {
+      console.error("Server returned an error status:", res.status);
+      showToast("Server error. Check your Flask terminal.", "error");
+      return;
+    }
+
+    const data = await res.json();
+
+    if (data.success) {
+      showToast('Logged in successfully!', 'success');
+      setTimeout(() => {
+        window.location.href = "/dashboard_user";
+      }, 1000);
+    } else {
+      showToast("Login failed: " + data.message, 'error');
+    }
+    } catch (error) {
+    console.error("Fetch Error:", error);
+    showToast("Network error during Google Sign-In.", 'error');
+    }
+  }
+
+
+
+
+  // Handle backspace key on OTP digits to navigate back smoothly
+  document.addEventListener('keydown', function (e) {
+    if (e.target.classList.contains('otp-digit') && e.key === 'Backspace' && e.target.value === '') {
+      const prevInput = e.target.previousElementSibling;
+      if (prevInput && prevInput.classList.contains('otp-digit')) {
+        prevInput.focus();
+      }
+    }
+  });
+</script>
+
+</body>
+</html>

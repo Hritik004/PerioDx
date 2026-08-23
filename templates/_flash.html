@@ -1,0 +1,116 @@
+<!-- templates/_flash.html -->
+
+<style>
+  /* Flash Messages Container - NOW FLOATING & WIDER */
+  .flash-container {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    max-width: 600px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    pointer-events: none;
+  }
+
+  /* Base Alert Box - THICKER PADDING & LARGER TEXT */
+  .flash-alert {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 22px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 500;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+    animation: flashFadeIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  }
+
+  .flash-icon {
+    font-size: 18px;
+  }
+
+  .flash-message {
+    flex-grow: 1;
+    margin: 0 15px;
+    line-height: 1.4;
+  }
+
+  /* Close Button */
+  .flash-close {
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+    color: inherit;
+    padding: 0;
+  }
+
+  .flash-close:hover {
+    opacity: 1;
+  }
+
+  /* Category Colors (Slightly Darker Backgrounds) */
+  .flash-error, .flash-danger {
+    background-color: #fde8e8; /* Darker soft red */
+    color: #991b1b;
+    border: 1px solid #f8b4b4;
+  }
+
+  .flash-success {
+    background-color: #def7ec; /* Darker soft green */
+    color: #166534;
+    border: 1px solid #84e1bc;
+  }
+
+  .flash-info {
+    background-color: #e1effe; /* Darker soft blue */
+    color: #1e40af;
+    border: 1px solid #b2d5ff;
+  }
+
+  /* Slide down from top animation */
+  @keyframes flashFadeIn {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+
+<!-- THE HTML TEMPLATE -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="flash-container">
+      {% for category, message in messages %}
+        <div class="flash-alert flash-{{ category if category else 'info' }}">
+          <span class="flash-icon">
+            {% if category == 'error' or category == 'danger' %}⚠️
+            {% elif category == 'success' %}✅
+            {% else %}ℹ️
+            {% endif %}
+          </span>
+          <span class="flash-message">{{ message }}</span>
+          <button type="button" class="flash-close" onclick="this.parentElement.remove()">✕</button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
+<!-- THE JAVASCRIPT -->
+<script>
+  setTimeout(() => {
+    document.querySelectorAll('.flash-alert').forEach(alert => {
+      alert.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+      alert.style.opacity = '0';
+      alert.style.transform = 'translateY(-20px)';
+
+      setTimeout(() => alert.remove(), 400);
+    });
+  }, 4000);
+</script>
