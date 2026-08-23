@@ -83,6 +83,17 @@ app.secret_key = APP_SECRET_KEY
 #     "account" database.
 #   - Patient / Report / ToothMeasurement live on the 'dental' bind,
 #     the "dental_reports" database.
+#
+# NOTE ON CROSS-DATABASE OWNERSHIP:
+# Report.created_by_user_id references User.id, but User lives on the
+# default bind ("account" DB) and Report lives on the 'dental' bind
+# ("dental_reports" DB) — two separate physical MySQL databases. MySQL
+# (and SQLAlchemy) can't enforce a real FOREIGN KEY across databases, so
+# created_by_user_id is a plain indexed BigInteger column. Ownership is
+# enforced entirely in application code (see every route below that
+# filters/checks against session['user_id']) — there is no DB-level
+# guarantee, so any new route touching Report or Patient must remember
+# to filter by created_by_user_id itself.
 # ---------------------------------------------------------------------------
 
 # Default bind: account database
@@ -240,6 +251,17 @@ class Report(db.Model):
             ondelete="CASCADE",
             onupdate="CASCADE"
         ),
+        nullable=False,
+        index=True
+    )
+
+    # Which logged-in clinician (User.id, account DB) saved this report.
+    # Can't be a real ForeignKey — users/reports live in two different
+    # physical MySQL databases (see the DATABASES note above) — so this
+    # is a plain indexed column, checked explicitly in every route that
+    # reads or lists reports/patients.
+    created_by_user_id = db.Column(
+        db.BigInteger,
         nullable=False,
         index=True
     )
@@ -832,6 +854,16 @@ def see_report():
 # ==========================================
 @app.route('/api/patients/<int:patient_id>', methods=['GET'])
 def get_patient(patient_id):
+    # Intentionally NOT scoped to created_by_user_id: this endpoint only
+    # backs the "attach this diagnosis to an existing patient" step of the
+    # save flow, where a clinician needs to look up a patient (possibly
+    # entered by a colleague) purely by ID to confirm it exists before
+    # saving a new report against it. Report/patient VISIBILITY is what's
+    # scoped elsewhere (api_search_patients, api_patient_reports,
+    # api_report_detail) — this lookup deliberately stays open so patient
+    # records can be shared across clinicians for the save step. If you
+    # want fully siloed patients (no cross-clinician reuse), this route
+    # needs the same created_by_user_id check as the others.
     if 'user_id' not in session:
         return jsonify({"success": False, "message": "Not authenticated"}), 401
 
@@ -859,8 +891,9 @@ def save_report():
     """
     Persists a cached (in-memory JSON) diagnostic report into the dental
     database: resolves or creates the Patient, calculates a periodontitis
-    stage from the per-tooth bone-loss map, then writes one Report row and
-    one ToothMeasurement row per detected tooth.
+    stage from the per-tooth bone-loss map, then writes one Report row
+    (tagged with the saving clinician's user id) and one ToothMeasurement
+    row per detected tooth.
 
     Expected JSON body:
       {
@@ -956,6 +989,7 @@ def save_report():
 
         report_row = Report(
             patient_id=patient.id,
+            created_by_user_id=session['user_id'],
             periodontitis_stage=stage,
             notes=(
                 f"Auto-saved from diagnostic scan (cache id {report_id}). "
@@ -1011,6 +1045,278 @@ def save_report():
         db.session.rollback()
         print(f"SAVE REPORT FAILED: {str(e)}")
         return jsonify({"success": False, "message": "Failed to save report."}), 500
+
+
+
+
+
+
+@app.route('/records')
+def records():
+    """Patients -> their saved reports -> per-tooth bone-loss detail."""
+    if 'user_id' not in session:
+        return redirect(url_for('login_student'))
+ 
+    user = User.query.get(session['user_id'])
+    if not user:
+        session.clear()
+        return redirect(url_for('login_student'))
+ 
+    return render_template('records.html', user=user)
+ 
+ 
+
+def compute_tooth_bone_loss(cej_ac_distance_px, tooth_length_px):
+    """
+    Dynamically derive a tooth's bone-loss % + severity band from its two
+    raw pixel measurements.
+ 
+    IMPORTANT: this must exactly match the formula used at diagnosis time
+    in colab_server.py's process_image():
+ 
+        percentage_val = (cej_ac_distance_px / tooth_length_px) * 100
+        percentage_val = max(0, percentage_val - 15)
+ 
+    i.e. NOT a plain ratio — there's a flat 15-point offset subtracted
+    (and floored at 0) before it's treated as a bone-loss %. Only the raw
+    cej_ac_distance_px / tooth_length_px get persisted to the DB (see
+    ToothMeasurement), not the derived percentage, so this recomputation
+    has to reproduce that offset or saved-report percentages will drift
+    from what was actually shown when the scan was first diagnosed.
+ 
+    Nothing is cached — this runs fresh every time a saved report is
+    opened in /records.
+ 
+    Returns (bone_loss_pct: float | None, status: str) where status is
+    one of "normal", "mild", "moderate", "severe", "unmeasured".
+    """
+    if cej_ac_distance_px is None or tooth_length_px is None:
+        return None, "unmeasured"
+ 
+    try:
+        distance = float(cej_ac_distance_px)
+        length = float(tooth_length_px)
+    except (TypeError, ValueError):
+        return None, "unmeasured"
+ 
+    if length <= 0:
+        return None, "unmeasured"
+ 
+    pct = (distance / length) * 100
+    pct = max(0.0, pct - 15)   # <-- matches colab_server.py's offset exactly
+    pct = min(pct, 100.0)      # safety cap; colab_server.py has no upper bound
+    pct = round(pct, 1)
+ 
+    if pct < 15:
+        status = "normal"
+    elif pct < 33:
+        status = "mild"
+    elif pct < 50:
+        status = "moderate"
+    else:
+        status = "severe"
+ 
+    return pct, status
+ 
+ 
+ 
+@app.route('/api/patients', methods=['GET'])
+def api_search_patients():
+    """
+    Lists/searches patients THIS USER has at least one saved report for.
+    A patient is only visible here if the logged-in clinician has
+    created_by_user_id == session['user_id'] on at least one Report tied
+    to that patient — patients another clinician has reported on, with no
+    report from this user, never appear.
+
+    Optional ?q= matches, in a single pass:
+      - exact patient ID (if q is numeric)
+      - phone number, partial match
+      - report number (if q is numeric and matches one of THIS USER'S
+        reports, the owning patient is returned)
+    With no q, returns the 100 most recently created matching patients.
+    """
+    if 'user_id' not in session:
+        return jsonify({"success": False, "message": "Not authenticated"}), 401
+
+    user_id = session['user_id']
+    q = (request.args.get('q') or '').strip()
+
+    # Base scope: only patients with >=1 report belonging to this user.
+    query = (
+        Patient.query
+        .join(Report, Report.patient_id == Patient.id)
+        .filter(Report.created_by_user_id == user_id)
+        .distinct()
+    )
+
+    if q:
+        filters = [Patient.phone.ilike(f'%{q}%')]
+        if q.isdigit():
+            qnum = int(q)
+            filters.append(Patient.id == qnum)
+            # Only match a report number if it belongs to this user —
+            # otherwise a guessed/known report id from another clinician
+            # could be used to locate a patient this user shouldn't see.
+            report = Report.query.filter_by(id=qnum, created_by_user_id=user_id).first()
+            if report:
+                filters.append(Patient.id == report.patient_id)
+        query = query.filter(db.or_(*filters))
+
+    patients = query.order_by(Patient.id.desc()).limit(100).all()
+
+    results = []
+    for p in patients:
+        # report_count / last_report_date must reflect only THIS USER's
+        # reports on the patient, not the patient's full history across
+        # every clinician — so filter p.reports in Python rather than
+        # trusting the relationship as-is.
+        own_reports = [r for r in p.reports if r.created_by_user_id == user_id]
+        last_report_date = max((r.report_date for r in own_reports), default=None)
+        results.append({
+            "id": p.id,
+            "first_name": p.first_name,
+            "last_name": p.last_name or "",
+            "phone": p.phone,
+            "diabetic": p.diabetic,
+            "report_count": len(own_reports),
+            "last_report_date": last_report_date.isoformat() if last_report_date else None
+        })
+ 
+    return jsonify({"success": True, "patients": results}), 200
+ 
+ 
+@app.route('/api/patients/<int:patient_id>/reports', methods=['GET'])
+def api_patient_reports(patient_id):
+    """All of THIS USER'S saved reports for one patient, newest first.
+
+    If the logged-in clinician has never saved a report for this patient
+    (even if the patient exists via another clinician's work), this
+    returns 404 — the patient's PII (name, phone, diabetic status) is not
+    exposed, and no other clinician's reports are listed.
+    """
+    if 'user_id' not in session:
+        return jsonify({"success": False, "message": "Not authenticated"}), 401
+
+    user_id = session['user_id']
+
+    patient = Patient.query.get(patient_id)
+    if not patient:
+        return jsonify({"success": False, "message": f"No patient found with ID {patient_id}."}), 404
+ 
+    reports = (
+        Report.query
+        .filter_by(patient_id=patient_id, created_by_user_id=user_id)
+        .order_by(Report.report_date.desc())
+        .all()
+    )
+
+    if not reports:
+        # This user has no reports on this patient — treat the patient as
+        # not found for them rather than leaking that the patient exists
+        # under another clinician's account.
+        return jsonify({"success": False, "message": f"No patient found with ID {patient_id}."}), 404
+ 
+    return jsonify({
+        "success": True,
+        "patient": {
+            "id": patient.id,
+            "first_name": patient.first_name,
+            "last_name": patient.last_name or "",
+            "phone": patient.phone,
+            "diabetic": patient.diabetic
+        },
+        "reports": [
+            {
+                "id": r.id,
+                "report_date": r.report_date.isoformat(),
+                "periodontitis_stage": r.periodontitis_stage,
+                "notes": r.notes,
+                "tooth_count": len(r.tooth_measurements)
+            }
+            for r in reports
+        ]
+    }), 200
+ 
+ 
+@app.route('/api/reports/<int:report_id>', methods=['GET'])
+def api_report_detail(report_id):
+    """
+    One saved report's full detail: patient info + a 32-position FDI
+    tooth map, with bone-loss % and severity computed live (not stored)
+    from each tooth's cej_ac_distance_px / tooth_length_px.
+
+    Only the clinician who originally saved this report (created_by_user_id
+    == session['user_id']) can view it. A report belonging to someone else
+    is reported as "not found" rather than 403, so its existence isn't
+    leaked to users who don't own it.
+    """
+    if 'user_id' not in session:
+        return jsonify({"success": False, "message": "Not authenticated"}), 401
+ 
+    report = Report.query.get(report_id)
+    if not report or report.created_by_user_id != session['user_id']:
+        return jsonify({"success": False, "message": f"No report found with ID {report_id}."}), 404
+ 
+    patient = report.patient
+    measurements_by_tooth = {m.tooth_number: m for m in report.tooth_measurements}
+ 
+    def build_jaw(order):
+        jaw = []
+        for tooth_number in order:
+            m = measurements_by_tooth.get(tooth_number)
+            if m is None:
+                # No ToothMeasurement row for this position -> the model
+                # never detected a tooth here when the report was saved.
+                jaw.append({
+                    "tooth_number": tooth_number,
+                    "status": "missing",
+                    "bone_loss_pct": None,
+                    "cej_ac_distance_px": None,
+                    "tooth_length_px": None
+                })
+                continue
+ 
+            pct, status = compute_tooth_bone_loss(m.cej_ac_distance_px, m.tooth_length_px)
+            jaw.append({
+                "tooth_number": tooth_number,
+                "status": status,
+                "bone_loss_pct": pct,
+                "cej_ac_distance_px": float(m.cej_ac_distance_px) if m.cej_ac_distance_px is not None else None,
+                "tooth_length_px": float(m.tooth_length_px) if m.tooth_length_px is not None else None
+            })
+        return jaw
+ 
+    teeth = {
+        "upper": build_jaw(FDI_UPPER_ORDER),
+        "lower": build_jaw(FDI_LOWER_ORDER)
+    }
+ 
+    return jsonify({
+        "success": True,
+        "report": {
+            "id": report.id,
+            "report_date": report.report_date.isoformat(),
+            "periodontitis_stage": report.periodontitis_stage,
+            "notes": report.notes
+        },
+        "patient": {
+            "id": patient.id,
+            "first_name": patient.first_name,
+            "last_name": patient.last_name or "",
+            "phone": patient.phone,
+            "diabetic": patient.diabetic
+        },
+        "teeth": teeth
+    }), 200
+ 
+
+
+
+
+
+
+
 
 
 @app.route('/register', methods=['POST'])
