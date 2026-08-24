@@ -517,6 +517,11 @@
   .chat-modal-overlay.minimized .chat-modal-head:active{ cursor:grabbing; }
   .chat-modal-overlay.minimized .chat-modal-head h3{ font-size:13px; }
 
+  .chat-modal-overlay.minimized .chat-modal.dragging{
+    transition:none !important;
+  }
+
+
   @media (max-width:900px){
     .chat-modal{max-width:100%;height:92vh;border-radius:18px;}
     .chat-modal-head{padding:14px 16px;}
@@ -1395,6 +1400,8 @@
   let chatDragging = false;
   let chatDragMoved = false;
   let chatDragOffsetX = 0, chatDragOffsetY = 0;
+  let chatDragW = 0, chatDragH = 0;
+  let chatDragRAF = null;
 
   function openAIChat(){
     if (!lastReportId) { showToast('Run a diagnosis first'); return; }
@@ -1496,12 +1503,18 @@
   chatModalHead.addEventListener('mousedown', startChatDrag);
   chatModalHead.addEventListener('touchstart', startChatDrag, { passive:false });
 
-  function startChatDrag(e){
+
+
+
+    function startChatDrag(e){
     if (!chatMinimized || isChatControlBtn(e.target)) return;
     chatDragging = true;
     chatDragMoved = false;
     const modal = chatModalOverlay.querySelector('.chat-modal');
+    modal.classList.add('dragging');
     const rect = modal.getBoundingClientRect();
+    chatDragW = rect.width;
+    chatDragH = rect.height;
     const point = e.touches ? e.touches[0] : e;
     chatDragOffsetX = point.clientX - rect.left;
     chatDragOffsetY = point.clientY - rect.top;
@@ -1516,26 +1529,38 @@
     if (!chatDragging) return;
     chatDragMoved = true;
     const point = e.touches ? e.touches[0] : e;
-    const modal = chatModalOverlay.querySelector('.chat-modal');
-    const w = modal.offsetWidth, h = modal.offsetHeight;
-    let left = point.clientX - chatDragOffsetX;
-    let top = point.clientY - chatDragOffsetY;
-    left = Math.max(8, Math.min(window.innerWidth - w - 8, left));
-    top = Math.max(8, Math.min(window.innerHeight - h - 8, top));
-    modal.style.left = left + 'px';
-    modal.style.top = top + 'px';
-    modal.style.right = 'auto';
-    modal.style.bottom = 'auto';
+
+    if (chatDragRAF) cancelAnimationFrame(chatDragRAF);
+    chatDragRAF = requestAnimationFrame(() => {
+      const modal = chatModalOverlay.querySelector('.chat-modal');
+      let left = point.clientX - chatDragOffsetX;
+      let top = point.clientY - chatDragOffsetY;
+      left = Math.max(8, Math.min(window.innerWidth - chatDragW - 8, left));
+      top = Math.max(8, Math.min(window.innerHeight - chatDragH - 8, top));
+      modal.style.left = left + 'px';
+      modal.style.top = top + 'px';
+      modal.style.right = 'auto';
+      modal.style.bottom = 'auto';
+    });
+
     if (e.cancelable) e.preventDefault();
   }
 
   function endChatDrag(){
     chatDragging = false;
+    if (chatDragRAF) { cancelAnimationFrame(chatDragRAF); chatDragRAF = null; }
+    const modal = chatModalOverlay.querySelector('.chat-modal');
+    if (modal) modal.classList.remove('dragging');
     document.removeEventListener('mousemove', dragChatMove);
     document.removeEventListener('touchmove', dragChatMove);
     document.removeEventListener('mouseup', endChatDrag);
     document.removeEventListener('touchend', endChatDrag);
   }
+
+
+
+
+
 
   // Clicking the mini box header (not a control button, not a drag) restores it
   chatModalHead.addEventListener('click', (e)=>{
