@@ -737,7 +737,7 @@
     activeReportMeta = handoff;
 
     showReportBanner({
-      id: handoff.report_id,
+      id: handoff.report_id || handoff.saved_report_id,
       patient_name: handoff.patient_name || null,
       patient_id: handoff.patient_id || null,
       stage: handoff.periodontitis_stage || handoff.stage || null
@@ -834,7 +834,7 @@
      report_cache blob, which also carries the four base64 report images.
   */
   async function openReportJsonModal() {
-    if (!activeReportId) return;
+    if (!activeReportId && !activeSavedReportId) return;
 
     jsonModalPre.textContent = "Loading…";
     jsonModalOverlay.classList.add("show");
