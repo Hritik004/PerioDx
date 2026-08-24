@@ -23,6 +23,7 @@
     --bg-2:rgba(106,95,240,0.10);
     --bg-base:#f7f6fb;
     --field-bg:#fbfaff;
+    --overlay:rgba(33,31,54,0.45);
     --surface-tint:rgba(33,31,54,0.05);
     --icon-tint:rgba(33,31,54,0.06);
     --font-display:'Fraunces', serif;
@@ -154,6 +155,17 @@
   .report-card .r-notes{font-size:12px;color:var(--muted);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:520px;}
   .report-card .r-meta{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;}
   .report-card .r-teeth{font-size:11px;color:var(--muted);font-family:var(--font-mono);}
+  .report-card .r-actions{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+  .r-chat-btn{
+    display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#fff;
+    background:linear-gradient(135deg,var(--mint),#00a67e);
+    padding:8px 13px;border-radius:100px;
+    box-shadow:0 8px 18px rgba(0,200,150,0.22);
+    transition:transform .15s ease, box-shadow .15s ease;
+    white-space:nowrap;
+  }
+  .r-chat-btn:hover{transform:translateY(-1px);box-shadow:0 12px 24px rgba(0,200,150,0.3);}
+  .r-chat-btn svg{width:13px;height:13px;flex-shrink:0;}
 
   .stage-badge{font-size:11px;font-weight:700;padding:5px 11px;border-radius:100px;letter-spacing:0.01em;}
   .stage-badge.s-notclassified{color:var(--muted);background:var(--surface-tint);}
@@ -175,6 +187,15 @@
   .dh-stat .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;font-family:var(--font-mono);margin-bottom:4px;}
   .dh-stat .v{font-size:13.5px;font-weight:600;}
   .dh-notes{margin-top:14px;font-size:12.5px;color:var(--muted);line-height:1.6;padding-top:14px;border-top:1px solid var(--hair);}
+  .dh-chat-btn{
+    display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:#fff;
+    background:linear-gradient(135deg,var(--mint),#00a67e);
+    padding:9px 16px;border-radius:100px;
+    box-shadow:0 10px 22px rgba(0,200,150,0.24);
+    transition:transform .18s ease, box-shadow .18s ease;
+  }
+  .dh-chat-btn:hover{transform:translateY(-1px);box-shadow:0 14px 28px rgba(0,200,150,0.3);}
+  .dh-chat-btn svg{width:14px;height:14px;flex-shrink:0;}
 
   .tooth-map-card{background:var(--card);border:1px solid var(--hair);border-radius:18px;padding:24px;box-shadow:0 12px 30px rgba(76,63,180,0.06);}
   .tm-jaw-label{text-align:center;font-family:var(--font-mono);font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:0.09em;margin-bottom:10px;}
@@ -208,6 +229,69 @@
   .tm-hint{text-align:center;font-size:12.5px;color:var(--ink);font-weight:500;padding:12px 14px;border-radius:12px;background:var(--field-bg);border:1px solid var(--hair);min-height:20px;}
   .tm-hint.placeholder{color:var(--muted);font-weight:400;}
 
+  /* ---------------- AI assistant modal (same behavior as dashboard) ---------------- */
+  .report-modal-icon-btn{
+    width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+    color:var(--muted);background:var(--surface-tint);flex-shrink:0;
+    transition:color .15s ease, background-color .15s ease;
+  }
+  .report-modal-icon-btn svg{width:16px;height:16px;display:block;}
+  .report-modal-icon-btn:hover{color:var(--violet-3);background:rgba(106,95,240,0.1);}
+  .report-modal-close:hover{color:var(--rose);background:rgba(240,85,106,0.1);}
+
+  .chat-modal-overlay{
+    position:fixed;inset:0;background:var(--overlay);
+    display:flex;align-items:center;justify-content:center;
+    opacity:0;pointer-events:none;transition:opacity .2s ease;
+    z-index:310;padding:20px;
+  }
+  .chat-modal-overlay.show{opacity:1;pointer-events:auto;}
+  .chat-modal{
+    background:var(--card);border-radius:22px;width:100%;max-width:920px;
+    height:min(92vh,900px);
+    box-shadow:0 30px 70px rgba(0,0,0,0.35);
+    display:flex;flex-direction:column;overflow:hidden;
+    transform:translateY(10px);
+    transition:transform .2s ease, max-width .22s ease, height .22s ease, border-radius .22s ease, width .22s ease, top .22s ease, left .22s ease, right .22s ease, bottom .22s ease;
+  }
+  .chat-modal-overlay.show .chat-modal{transform:translateY(0);}
+
+  .chat-modal-overlay.fullscreen{padding:0;}
+  .chat-modal-overlay.fullscreen .chat-modal{
+    max-width:100vw;width:100vw;height:100vh;border-radius:0;
+  }
+
+  .chat-modal-head{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:16px 20px;border-bottom:1px solid var(--hair);flex-shrink:0;
+  }
+  .chat-modal-head h3{font-family:var(--font-display);font-size:1.15rem;font-weight:600;}
+  .chat-modal-head-actions{display:flex;align-items:center;gap:8px;}
+  .chat-modal-fullscreen-btn .icon-expand{display:block;}
+  .chat-modal-fullscreen-btn .icon-collapse{display:none;}
+  .chat-modal-overlay.fullscreen .chat-modal-fullscreen-btn .icon-expand{display:none;}
+  .chat-modal-overlay.fullscreen .chat-modal-fullscreen-btn .icon-collapse{display:block;}
+  .chat-minimize-btn svg{width:16px;height:16px;display:block;}
+
+  .chat-modal-body{flex-grow:1;min-height:0;}
+  .chat-modal-body iframe{display:block;width:100%;height:100%;border:none;background:var(--bg-base);}
+
+  .chat-modal-overlay.minimized{background:transparent;padding:0;pointer-events:none;}
+  .chat-modal-overlay.minimized .chat-modal{
+    position:fixed;width:320px;height:220px;max-width:320px;border-radius:16px;
+    box-shadow:0 20px 50px rgba(0,0,0,0.35);transform:none;pointer-events:auto;
+    top:auto;left:auto;bottom:20px;right:20px;
+  }
+  .chat-modal-overlay.minimized .chat-modal-head{cursor:grab;padding:10px 12px;user-select:none;}
+  .chat-modal-overlay.minimized .chat-modal-head:active{cursor:grabbing;}
+  .chat-modal-overlay.minimized .chat-modal-head h3{font-size:13px;}
+
+  @media (max-width:900px){
+    .chat-modal{max-width:100%;height:92vh;border-radius:18px;}
+    .chat-modal-head{padding:14px 16px;}
+    .chat-modal-overlay.minimized .chat-modal{width:260px;height:190px;right:12px;bottom:12px;}
+  }
+
   @media (max-width:900px){
     .shell{grid-template-columns:1fr;}
     .sidebar{position:relative;height:auto;flex-direction:row;align-items:center;overflow-x:auto;padding:14px 16px;}
@@ -219,7 +303,8 @@
     .main{padding:22px 18px 50px;}
     .detail-head .dh-grid{grid-template-columns:1fr;}
     .tm-tooth{width:30px;height:40px;}
-    .report-card .r-notes{max-width:220px;}
+    .report-card .r-notes{max-width:180px;}
+    .report-card{flex-wrap:wrap;}
   }
 </style>
 </head>
@@ -337,6 +422,40 @@
   </main>
 </div>
 
+<!-- ---------------- AI ASSISTANT MODAL (minimizable) ---------------- -->
+<div class="chat-modal-overlay" id="chatModalOverlay">
+  <div class="chat-modal">
+    <div class="chat-modal-head" id="chatModalHead">
+      <h3>AI Assistant</h3>
+      <div class="chat-modal-head-actions">
+        <button class="report-modal-icon-btn chat-minimize-btn" id="chatMinimizeBtn" onclick="toggleChatMinimize(event)" type="button" aria-label="Minimize" title="Minimize">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="5" y1="19" x2="19" y2="19"></line>
+          </svg>
+        </button>
+        <button class="report-modal-icon-btn chat-modal-fullscreen-btn" id="chatFullscreenBtn" onclick="toggleChatFullscreen(event)" type="button" aria-label="Toggle fullscreen" title="Toggle fullscreen">
+          <svg class="icon-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 3 21 3 21 9"></polyline>
+            <polyline points="9 21 3 21 3 15"></polyline>
+            <line x1="21" y1="3" x2="14" y2="10"></line>
+            <line x1="3" y1="21" x2="10" y2="14"></line>
+          </svg>
+          <svg class="icon-collapse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4 14 10 14 10 20"></polyline>
+            <polyline points="20 10 14 10 14 4"></polyline>
+            <line x1="14" y1="10" x2="21" y2="3"></line>
+            <line x1="3" y1="21" x2="10" y2="14"></line>
+          </svg>
+        </button>
+        <button class="report-modal-icon-btn report-modal-close" onclick="closeAIChat(event)" aria-label="Close AI assistant" title="Close">✕</button>
+      </div>
+    </div>
+    <div class="chat-modal-body">
+      <iframe id="chatFrame" title="PerioDx AI assistant" src="about:blank"></iframe>
+    </div>
+  </div>
+</div>
+
 <script>
   // ---------------- Theme (shared with dashboard) ----------------
   const THEME_KEY = 'periodx-theme';
@@ -378,6 +497,159 @@
     return d.toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' }) +
       ' · ' + d.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
   }
+
+  // ---------------- Chat with AI (minimizable, YouTube-style) ----------------
+  const chatModalOverlay = document.getElementById('chatModalOverlay');
+  const chatFrame = document.getElementById('chatFrame');
+  const chatFullscreenBtn = document.getElementById('chatFullscreenBtn');
+  const chatMinimizeBtn = document.getElementById('chatMinimizeBtn');
+  const chatModalHead = document.getElementById('chatModalHead');
+
+  let chatMinimized = false;
+  let chatDragging = false;
+  let chatDragMoved = false;
+  let chatDragOffsetX = 0, chatDragOffsetY = 0;
+
+  // saved_report_id = a real Report.id from the dental DB (as opposed to
+  // the on-disk diagnosis-cache uuid used from the Diagnose tab). The
+  // chat backend/frontend need to know which kind of id they got — see
+  // the app.py / periodx_chat.html additions.
+  function openAIChatForReport(reportId, patientName, stage){
+    const handoff = {
+      saved_report_id: reportId,
+      patient_name: patientName || null,
+      periodontitis_stage: stage || null
+    };
+    try {
+      sessionStorage.setItem('periodx_active_report', JSON.stringify(handoff));
+    } catch (err) {
+      console.error('Could not hand report off to chat', err);
+    }
+
+    chatModalOverlay.classList.remove('fullscreen', 'minimized');
+    chatMinimized = false;
+    const modal = chatModalOverlay.querySelector('.chat-modal');
+    modal.style.left = modal.style.top = modal.style.right = modal.style.bottom = '';
+    chatFullscreenBtn.setAttribute('aria-label', 'Enter fullscreen');
+    chatFullscreenBtn.title = 'Enter fullscreen';
+    chatMinimizeBtn.setAttribute('aria-label', 'Minimize');
+    chatMinimizeBtn.title = 'Minimize';
+
+    chatFrame.src = '/chat';
+    chatModalOverlay.classList.add('show');
+  }
+
+  function closeAIChat(e){
+    if (e) e.stopPropagation();
+    if (document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+    chatModalOverlay.classList.remove('show', 'fullscreen', 'minimized');
+    chatMinimized = false;
+    chatFrame.src = 'about:blank';
+  }
+
+  chatModalOverlay.addEventListener('click', (e) => {
+    if (chatMinimized) return;
+    if (e.target === chatModalOverlay) closeAIChat();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && chatModalOverlay.classList.contains('show') && !chatMinimized) closeAIChat();
+  });
+
+  function toggleChatFullscreen(e){
+    if (e) e.stopPropagation();
+    if (chatMinimized) toggleChatMinimize();
+
+    const willBeFullscreen = !chatModalOverlay.classList.contains('fullscreen');
+    chatModalOverlay.classList.toggle('fullscreen', willBeFullscreen);
+    chatFullscreenBtn.setAttribute('aria-label', willBeFullscreen ? 'Exit fullscreen' : 'Enter fullscreen');
+    chatFullscreenBtn.title = willBeFullscreen ? 'Exit fullscreen' : 'Enter fullscreen';
+
+    if (willBeFullscreen) {
+      if (chatModalOverlay.requestFullscreen) chatModalOverlay.requestFullscreen().catch(()=>{});
+    } else if (document.fullscreenElement) {
+      document.exitFullscreen().catch(()=>{});
+    }
+  }
+  document.addEventListener('fullscreenchange', ()=>{
+    if (!document.fullscreenElement) {
+      chatModalOverlay.classList.remove('fullscreen');
+      chatFullscreenBtn.setAttribute('aria-label', 'Enter fullscreen');
+      chatFullscreenBtn.title = 'Enter fullscreen';
+    }
+  });
+
+  function isChatControlBtn(target){
+    return !!target.closest('.chat-minimize-btn, .chat-modal-fullscreen-btn, .report-modal-close');
+  }
+
+  function toggleChatMinimize(e){
+    if (e) e.stopPropagation();
+    chatMinimized = !chatMinimized;
+
+    if (chatMinimized) {
+      if (document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+      chatModalOverlay.classList.remove('fullscreen');
+      chatModalOverlay.classList.add('minimized');
+      chatMinimizeBtn.setAttribute('aria-label', 'Restore');
+      chatMinimizeBtn.title = 'Restore';
+    } else {
+      chatModalOverlay.classList.remove('minimized');
+      chatMinimizeBtn.setAttribute('aria-label', 'Minimize');
+      chatMinimizeBtn.title = 'Minimize';
+      const modal = chatModalOverlay.querySelector('.chat-modal');
+      modal.style.left = modal.style.top = modal.style.right = modal.style.bottom = '';
+    }
+  }
+
+  chatModalHead.addEventListener('mousedown', startChatDrag);
+  chatModalHead.addEventListener('touchstart', startChatDrag, { passive:false });
+
+  function startChatDrag(e){
+    if (!chatMinimized || isChatControlBtn(e.target)) return;
+    chatDragging = true;
+    chatDragMoved = false;
+    const modal = chatModalOverlay.querySelector('.chat-modal');
+    const rect = modal.getBoundingClientRect();
+    const point = e.touches ? e.touches[0] : e;
+    chatDragOffsetX = point.clientX - rect.left;
+    chatDragOffsetY = point.clientY - rect.top;
+    document.addEventListener('mousemove', dragChatMove);
+    document.addEventListener('touchmove', dragChatMove, { passive:false });
+    document.addEventListener('mouseup', endChatDrag);
+    document.addEventListener('touchend', endChatDrag);
+    e.preventDefault();
+  }
+
+  function dragChatMove(e){
+    if (!chatDragging) return;
+    chatDragMoved = true;
+    const point = e.touches ? e.touches[0] : e;
+    const modal = chatModalOverlay.querySelector('.chat-modal');
+    const w = modal.offsetWidth, h = modal.offsetHeight;
+    let left = point.clientX - chatDragOffsetX;
+    let top = point.clientY - chatDragOffsetY;
+    left = Math.max(8, Math.min(window.innerWidth - w - 8, left));
+    top = Math.max(8, Math.min(window.innerHeight - h - 8, top));
+    modal.style.left = left + 'px';
+    modal.style.top = top + 'px';
+    modal.style.right = 'auto';
+    modal.style.bottom = 'auto';
+    if (e.cancelable) e.preventDefault();
+  }
+
+  function endChatDrag(){
+    chatDragging = false;
+    document.removeEventListener('mousemove', dragChatMove);
+    document.removeEventListener('touchmove', dragChatMove);
+    document.removeEventListener('mouseup', endChatDrag);
+    document.removeEventListener('touchend', endChatDrag);
+  }
+
+  chatModalHead.addEventListener('click', (e)=>{
+    if (!chatMinimized || isChatControlBtn(e.target)) return;
+    if (chatDragMoved) { chatDragMoved = false; return; }
+    toggleChatMinimize();
+  });
 
   // ---------------- Panel 1: patients ----------------
   const searchInput = document.getElementById('searchInput');
@@ -471,8 +743,10 @@
       if (!res.ok || !data.success) throw new Error(data.message || 'Failed to load reports');
 
       const p = data.patient;
+      const patientFullName = p.first_name + (p.last_name ? ' ' + p.last_name : '');
+
       const top = el('div', 'dh-top');
-      top.appendChild(el('h2', null, p.first_name + (p.last_name ? ' ' + p.last_name : '')));
+      top.appendChild(el('h2', null, patientFullName));
       if (p.diabetic) top.appendChild(el('span', 'badge-diabetic', 'Diabetic'));
       reportsPatientHead.appendChild(top);
       reportsPatientHead.appendChild(el('div', 'dh-sub', 'Patient ID #' + p.id + '  ·  ' + p.phone));
@@ -496,8 +770,26 @@
         meta.appendChild(el('span', stageClass(r.periodontitis_stage), r.periodontitis_stage));
         meta.appendChild(el('span', 'r-teeth', r.tooth_count + ' teeth recorded'));
 
+        // ---- "Chat with AI" beside every report ----
+        const actions = el('div', 'r-actions');
+        const chatBtn = document.createElement('button');
+        chatBtn.type = 'button';
+        chatBtn.className = 'r-chat-btn';
+        chatBtn.innerHTML = `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+          </svg>
+          Chat with AI
+        `;
+        chatBtn.addEventListener('click', (e) => {
+          e.stopPropagation(); // don't also open the report detail panel
+          openAIChatForReport(r.id, patientFullName, r.periodontitis_stage);
+        });
+        actions.appendChild(chatBtn);
+
         card.appendChild(main);
         card.appendChild(meta);
+        card.appendChild(actions);
         card.addEventListener('click', () => openReport(r.id));
         card.addEventListener('keydown', (e) => { if (e.key === 'Enter') openReport(r.id); });
         reportsList.appendChild(card);
@@ -535,15 +827,30 @@
       if (!res.ok || !data.success) throw new Error(data.message || 'Failed to load report');
 
       const r = data.report, p = data.patient;
+      const patientFullName = p.first_name + (p.last_name ? ' ' + p.last_name : '');
 
       const top = el('div', 'dh-top');
       top.appendChild(el('h2', null, 'Report #' + r.id));
       top.appendChild(el('span', stageClass(r.periodontitis_stage), r.periodontitis_stage));
+
+      // ---- "Chat with AI" beside the report detail too ----
+      const chatBtn = document.createElement('button');
+      chatBtn.type = 'button';
+      chatBtn.className = 'dh-chat-btn';
+      chatBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+        </svg>
+        Chat with AI
+      `;
+      chatBtn.addEventListener('click', () => openAIChatForReport(r.id, patientFullName, r.periodontitis_stage));
+      top.appendChild(chatBtn);
+
       detailHead.appendChild(top);
       detailHead.appendChild(el('div', 'dh-sub', formatDate(r.report_date)));
 
       const grid = el('div', 'dh-grid');
-      const s1 = el('div', 'dh-stat'); s1.appendChild(el('div','l','Patient')); s1.appendChild(el('div','v', p.first_name + (p.last_name ? ' ' + p.last_name : '') + '  (#' + p.id + ')'));
+      const s1 = el('div', 'dh-stat'); s1.appendChild(el('div','l','Patient')); s1.appendChild(el('div','v', patientFullName + '  (#' + p.id + ')'));
       const s2 = el('div', 'dh-stat'); s2.appendChild(el('div','l','Phone')); s2.appendChild(el('div','v', p.phone));
       const s3 = el('div', 'dh-stat'); s3.appendChild(el('div','l','Diabetic')); s3.appendChild(el('div','v', p.diabetic ? 'Yes' : 'No'));
       grid.appendChild(s1); grid.appendChild(s2); grid.appendChild(s3);

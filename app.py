@@ -1503,6 +1503,73 @@ def build_tooth_report_json(cached_report):
 
 
 
+def build_tooth_report_json_from_saved(report):
+    """
+    Same shape as build_tooth_report_json(), but sourced from a *saved*
+    Report/ToothMeasurement DB row (records.html) instead of the on-disk
+    diagnosis cache. Percentages are recomputed live via
+    compute_tooth_bone_loss so they can never drift from what's stored.
+    """
+    measurements_by_tooth = {m.tooth_number: m for m in report.tooth_measurements}
+
+    def build_jaw(order):
+        jaw = []
+        for tooth_number in order:
+            m = measurements_by_tooth.get(tooth_number)
+            if m is None:
+                jaw.append({
+                    "tooth_number": tooth_number,
+                    "status": "missing",
+                    "cej_ac_distance_px": None,
+                    "tooth_length_px": None,
+                    "bone_loss_pct": None
+                })
+                continue
+            pct, status = compute_tooth_bone_loss(m.cej_ac_distance_px, m.tooth_length_px)
+            jaw.append({
+                "tooth_number": tooth_number,
+                "status": status,
+                "cej_ac_distance_px": float(m.cej_ac_distance_px) if m.cej_ac_distance_px is not None else None,
+                "tooth_length_px": float(m.tooth_length_px) if m.tooth_length_px is not None else None,
+                "bone_loss_pct": pct
+            })
+        return jaw
+
+    return {
+        "periodontitis_stage_estimate": report.periodontitis_stage,
+        "teeth": {
+            "upper": build_jaw(FDI_UPPER_ORDER),
+            "lower": build_jaw(FDI_LOWER_ORDER)
+        }
+    }
+
+
+@app.route('/api/slm-saved-report-json/<int:report_id>', methods=['GET'])
+def api_slm_saved_report_json(report_id):
+    """Distilled per-tooth JSON for a *saved* report — backs the JSON-view
+    banner in periodx_chat.html when opened from records.html."""
+    if 'user_id' not in session:
+        return jsonify({"success": False, "error": "Not authenticated"}), 401
+
+    report = Report.query.get(report_id)
+    if not report or report.created_by_user_id != session['user_id']:
+        return jsonify({"success": False, "error": "Report not found."}), 404
+
+    return jsonify({
+        "success": True,
+        "saved_report_id": report_id,
+        "report": build_tooth_report_json_from_saved(report)
+    }), 200
+
+
+
+
+
+
+
+
+
+
 
 @app.route('/api/slm-report-json/<report_id>', methods=['GET'])
 def api_slm_report_json(report_id):
@@ -1560,8 +1627,11 @@ def ask_perio_ai():
         return jsonify({"success": False, "error": "Not authenticated"}), 401
 
     data = request.get_json(silent=True) or {}
+
     user_prompt = (data.get('prompt') or '').strip()
     report_id = data.get('report_id')
+    saved_report_id = data.get('saved_report_id')
+
 
     if not user_prompt:
         return jsonify({"success": False, "error": "No prompt provided"}), 400
@@ -1577,13 +1647,40 @@ def ask_perio_ai():
     }
 
     report_meta = None
-    if report_id:
-        cached_report = load_cached_report(report_id, session['user_id'])
+
+    # Saved database report takes priority
+    if saved_report_id:
+        try:
+            saved_id_int = int(saved_report_id)
+        except (TypeError, ValueError):
+            saved_id_int = None
+
+        if saved_id_int:
+            report = Report.query.get(saved_id_int)
+
+            if report and report.created_by_user_id == session['user_id']:
+                payload["report"] = build_tooth_report_json_from_saved(report)
+
+                report_meta = {
+                    "saved_report_id": saved_id_int,
+                    "periodontitis_stage": report.periodontitis_stage
+                }
+
+    # Otherwise use temporary cached report
+    elif report_id:
+        cached_report = load_cached_report(
+            report_id,
+            session['user_id']
+        )
+
         if cached_report:
             payload["report"] = build_tooth_report_json(cached_report)
+
             report_meta = {
                 "report_id": report_id,
-                "periodontitis_stage": payload["report"]["periodontitis_stage_estimate"]
+                "periodontitis_stage": (
+                    payload["report"]["periodontitis_stage_estimate"]
+                )
             }
 
     headers = {"ngrok-skip-browser-warning": "true"}

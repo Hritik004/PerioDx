@@ -463,7 +463,7 @@
     box-shadow:0 30px 70px rgba(0,0,0,0.35);
     display:flex;flex-direction:column;overflow:hidden;
     transform:translateY(10px);
-    transition:transform .2s ease, max-width .22s ease, height .22s ease, border-radius .22s ease;
+    transition:transform .2s ease, max-width .22s ease, height .22s ease, border-radius .22s ease, width .22s ease, top .22s ease, left .22s ease, right .22s ease, bottom .22s ease;
   }
   .chat-modal-overlay.show .chat-modal{transform:translateY(0);}
 
@@ -482,15 +482,45 @@
   .chat-modal-fullscreen-btn .icon-collapse{display:none;}
   .chat-modal-overlay.fullscreen .chat-modal-fullscreen-btn .icon-expand{display:none;}
   .chat-modal-overlay.fullscreen .chat-modal-fullscreen-btn .icon-collapse{display:block;}
+  .chat-minimize-btn svg{width:16px;height:16px;display:block;}
 
   .chat-modal-body{flex-grow:1;min-height:0;}
   .chat-modal-body iframe{
     display:block;width:100%;height:100%;border:none;background:var(--bg-base);
   }
 
+  /* ---- Chat mini player (minimized) ---- */
+  .chat-modal-overlay.minimized{
+    background:transparent;
+    padding:0;
+    pointer-events:none;
+  }
+  .chat-modal-overlay.minimized .chat-modal{
+    position:fixed;
+    width:320px;
+    height:220px;
+    max-width:320px;
+    border-radius:16px;
+    box-shadow:0 20px 50px rgba(0,0,0,0.35);
+    transform:none;
+    pointer-events:auto;
+    top:auto;
+    left:auto;
+    bottom:20px;
+    right:20px;
+  }
+  .chat-modal-overlay.minimized .chat-modal-head{
+    cursor:grab;
+    padding:10px 12px;
+    user-select:none;
+  }
+  .chat-modal-overlay.minimized .chat-modal-head:active{ cursor:grabbing; }
+  .chat-modal-overlay.minimized .chat-modal-head h3{ font-size:13px; }
+
   @media (max-width:900px){
     .chat-modal{max-width:100%;height:92vh;border-radius:18px;}
     .chat-modal-head{padding:14px 16px;}
+    .chat-modal-overlay.minimized .chat-modal{width:260px;height:190px;right:12px;bottom:12px;}
   }
 
   /* ---------------- save report modal ---------------- */
@@ -901,10 +931,15 @@
 <!-- ---------------- AI ASSISTANT MODAL ---------------- -->
 <div class="chat-modal-overlay" id="chatModalOverlay">
   <div class="chat-modal">
-    <div class="chat-modal-head">
+    <div class="chat-modal-head" id="chatModalHead">
       <h3>AI Assistant</h3>
       <div class="chat-modal-head-actions">
-        <button class="report-modal-icon-btn chat-modal-fullscreen-btn" id="chatFullscreenBtn" onclick="toggleChatFullscreen()" type="button" aria-label="Toggle fullscreen" title="Toggle fullscreen">
+        <button class="report-modal-icon-btn chat-minimize-btn" id="chatMinimizeBtn" onclick="toggleChatMinimize(event)" type="button" aria-label="Minimize" title="Minimize">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="5" y1="19" x2="19" y2="19"></line>
+          </svg>
+        </button>
+        <button class="report-modal-icon-btn chat-modal-fullscreen-btn" id="chatFullscreenBtn" onclick="toggleChatFullscreen(event)" type="button" aria-label="Toggle fullscreen" title="Toggle fullscreen">
           <svg class="icon-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="15 3 21 3 21 9"></polyline>
             <polyline points="9 21 3 21 3 15"></polyline>
@@ -918,7 +953,7 @@
             <line x1="3" y1="21" x2="10" y2="14"></line>
           </svg>
         </button>
-        <button class="report-modal-icon-btn report-modal-close" onclick="closeAIChat()" aria-label="Close AI assistant" title="Close">✕</button>
+        <button class="report-modal-icon-btn report-modal-close" onclick="closeAIChat(event)" aria-label="Close AI assistant" title="Close">✕</button>
       </div>
     </div>
     <div class="chat-modal-body">
@@ -1221,7 +1256,7 @@
   const smSectionNew = document.getElementById('smSectionNew');
 
   let smPatientMode = 'existing';
-  let lastSavedPatient = null; // { patient_id, periodontitis_stage } once saved — used to enrich the AI-chat handoff
+  let lastSavedPatient = null; // { patient_id, periodontitis_stage } once saved
 
   function smSetMode(mode){
     smPatientMode = mode;
@@ -1319,9 +1354,6 @@
       smMsg.textContent = `Saved — patient #${data.patient_id}, periodontitis stage: ${data.periodontitis_stage}.`;
       smMsg.className = 'sm-msg ok';
 
-      // Keep this around so a later "Chat with AI assistant" click can
-      // hand the assistant the resolved patient/stage, not just the
-      // pre-save cache id.
       lastSavedPatient = {
         patient_id: data.patient_id,
         periodontitis_stage: data.periodontitis_stage
@@ -1352,31 +1384,22 @@
   }
   smConfirmBtn.addEventListener('click', smConfirmSave);
 
-  // ---------------- Chat with AI assistant ----------------
-  // Opens the PerioDx chat UI (periodx_chat.html) in an in-page modal —
-  // the same pattern as "See report" — instead of a new tab, and hands
-  // it the just-generated diagnostic report so it can show a "report
-  // loaded" indicator and reference this scan in the conversation. The
-  // report images/teeth map only lives in the on-disk report_cache (see
-  // /api/diagnose in app.py) — not yet a proper DB row unless "Save
-  // report" was already used — so we pass along whatever we have: the
-  // cache id always, plus patient/stage if this diagnosis has since
-  // been saved.
-  //
-  // NOTE: this assumes the chat UI is served at /chat — update the
-  // iframe src below if your Flask route differs. sessionStorage is
-  // shared with same-origin iframes in this tab, so periodx_chat.html
-  // picks the handoff up on load without any URL params.
+  // ---------------- Chat with AI assistant (+ YouTube-style minimize) ----------------
   const chatModalOverlay = document.getElementById('chatModalOverlay');
   const chatFrame = document.getElementById('chatFrame');
   const chatFullscreenBtn = document.getElementById('chatFullscreenBtn');
+  const chatMinimizeBtn = document.getElementById('chatMinimizeBtn');
+  const chatModalHead = document.getElementById('chatModalHead');
+
+  let chatMinimized = false;
+  let chatDragging = false;
+  let chatDragMoved = false;
+  let chatDragOffsetX = 0, chatDragOffsetY = 0;
 
   function openAIChat(){
     if (!lastReportId) { showToast('Run a diagnosis first'); return; }
 
-    const handoff = {
-      report_id: lastReportId
-    };
+    const handoff = { report_id: lastReportId };
     if (lastSavedPatient) {
       handoff.patient_id = lastSavedPatient.patient_id;
       handoff.periodontitis_stage = lastSavedPatient.periodontitis_stage;
@@ -1388,33 +1411,43 @@
       console.error('Could not hand report off to chat', err);
     }
 
-    chatModalOverlay.classList.remove('fullscreen');
+    chatModalOverlay.classList.remove('fullscreen', 'minimized');
+    chatMinimized = false;
+    const modal = chatModalOverlay.querySelector('.chat-modal');
+    modal.style.left = modal.style.top = modal.style.right = modal.style.bottom = '';
     chatFullscreenBtn.setAttribute('aria-label', 'Enter fullscreen');
     chatFullscreenBtn.title = 'Enter fullscreen';
-    // Reload fresh each open so periodx_chat.html's DOMContentLoaded
-    // handler re-reads sessionStorage and shows the loaded-report banner.
+    chatMinimizeBtn.setAttribute('aria-label', 'Minimize');
+    chatMinimizeBtn.title = 'Minimize';
+
     chatFrame.src = '/chat';
     chatModalOverlay.classList.add('show');
   }
 
-  function closeAIChat(){
+  function closeAIChat(e){
+    if (e) e.stopPropagation();
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(()=>{});
     }
     chatModalOverlay.classList.remove('show');
     chatModalOverlay.classList.remove('fullscreen');
-    // Stop anything running in the iframe (mic listening, timers) once closed.
+    chatModalOverlay.classList.remove('minimized');
+    chatMinimized = false;
     chatFrame.src = 'about:blank';
   }
 
   chatModalOverlay.addEventListener('click', (e) => {
+    if (chatMinimized) return;
     if (e.target === chatModalOverlay) closeAIChat();
   });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && chatModalOverlay.classList.contains('show')) closeAIChat();
+    if (e.key === 'Escape' && chatModalOverlay.classList.contains('show') && !chatMinimized) closeAIChat();
   });
 
-  function toggleChatFullscreen(){
+  function toggleChatFullscreen(e){
+    if (e) e.stopPropagation();
+    if (chatMinimized) toggleChatMinimize(); // restore first
+
     const willBeFullscreen = !chatModalOverlay.classList.contains('fullscreen');
     chatModalOverlay.classList.toggle('fullscreen', willBeFullscreen);
     chatFullscreenBtn.setAttribute('aria-label', willBeFullscreen ? 'Exit fullscreen' : 'Enter fullscreen');
@@ -1434,6 +1467,81 @@
       chatFullscreenBtn.setAttribute('aria-label', 'Enter fullscreen');
       chatFullscreenBtn.title = 'Enter fullscreen';
     }
+  });
+
+  function isChatControlBtn(target){
+    return !!target.closest('.chat-minimize-btn, .chat-modal-fullscreen-btn, .report-modal-close');
+  }
+
+  function toggleChatMinimize(e){
+    if (e) e.stopPropagation();
+    chatMinimized = !chatMinimized;
+
+    if (chatMinimized) {
+      if (document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+      chatModalOverlay.classList.remove('fullscreen');
+      chatModalOverlay.classList.add('minimized');
+      chatMinimizeBtn.setAttribute('aria-label', 'Restore');
+      chatMinimizeBtn.title = 'Restore';
+    } else {
+      chatModalOverlay.classList.remove('minimized');
+      chatMinimizeBtn.setAttribute('aria-label', 'Minimize');
+      chatMinimizeBtn.title = 'Minimize';
+      const modal = chatModalOverlay.querySelector('.chat-modal');
+      modal.style.left = modal.style.top = modal.style.right = modal.style.bottom = '';
+    }
+  }
+
+  // Drag the mini box around while minimized
+  chatModalHead.addEventListener('mousedown', startChatDrag);
+  chatModalHead.addEventListener('touchstart', startChatDrag, { passive:false });
+
+  function startChatDrag(e){
+    if (!chatMinimized || isChatControlBtn(e.target)) return;
+    chatDragging = true;
+    chatDragMoved = false;
+    const modal = chatModalOverlay.querySelector('.chat-modal');
+    const rect = modal.getBoundingClientRect();
+    const point = e.touches ? e.touches[0] : e;
+    chatDragOffsetX = point.clientX - rect.left;
+    chatDragOffsetY = point.clientY - rect.top;
+    document.addEventListener('mousemove', dragChatMove);
+    document.addEventListener('touchmove', dragChatMove, { passive:false });
+    document.addEventListener('mouseup', endChatDrag);
+    document.addEventListener('touchend', endChatDrag);
+    e.preventDefault();
+  }
+
+  function dragChatMove(e){
+    if (!chatDragging) return;
+    chatDragMoved = true;
+    const point = e.touches ? e.touches[0] : e;
+    const modal = chatModalOverlay.querySelector('.chat-modal');
+    const w = modal.offsetWidth, h = modal.offsetHeight;
+    let left = point.clientX - chatDragOffsetX;
+    let top = point.clientY - chatDragOffsetY;
+    left = Math.max(8, Math.min(window.innerWidth - w - 8, left));
+    top = Math.max(8, Math.min(window.innerHeight - h - 8, top));
+    modal.style.left = left + 'px';
+    modal.style.top = top + 'px';
+    modal.style.right = 'auto';
+    modal.style.bottom = 'auto';
+    if (e.cancelable) e.preventDefault();
+  }
+
+  function endChatDrag(){
+    chatDragging = false;
+    document.removeEventListener('mousemove', dragChatMove);
+    document.removeEventListener('touchmove', dragChatMove);
+    document.removeEventListener('mouseup', endChatDrag);
+    document.removeEventListener('touchend', endChatDrag);
+  }
+
+  // Clicking the mini box header (not a control button, not a drag) restores it
+  chatModalHead.addEventListener('click', (e)=>{
+    if (!chatMinimized || isChatControlBtn(e.target)) return;
+    if (chatDragMoved) { chatDragMoved = false; return; }
+    toggleChatMinimize();
   });
 
   // ---------------- Diagnose: upload + pipeline ----------------
@@ -1522,7 +1630,6 @@
     formData.append('image', selectedFile);
 
     try {
-      // Flask forwards this to the Colab/ngrok model server's /predict endpoint
       const response = await fetch('/api/diagnose', { method: 'POST', body: formData });
       const data = await response.json();
 

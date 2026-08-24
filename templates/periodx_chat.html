@@ -658,6 +658,7 @@
   let editingHistoryIndex = null;
   let reportBannerDismissed = false;
   let activeReportId = null;
+  let activeSavedReportId = null;
   let activeReportMeta = null;
 
   const chatBox = document.getElementById("chat-box");
@@ -729,9 +730,10 @@
       if (paramReportId) handoff = { report_id: paramReportId };
     }
 
-    if (!handoff || !handoff.report_id) return;
+    if (!handoff || (!handoff.report_id && !handoff.saved_report_id)) return;
 
-    activeReportId = handoff.report_id;
+    activeReportId = handoff.report_id || null;
+    activeSavedReportId = handoff.saved_report_id || null;
     activeReportMeta = handoff;
 
     showReportBanner({
@@ -811,12 +813,18 @@
   }
 
   reportBannerDismiss.addEventListener("click", (e) => {
-    e.stopPropagation(); // don't also trigger the banner's own click-to-open-JSON handler
-    reportBannerDismissed = true;
-    activeReportId = null;
-    activeReportMeta = null;
-    try { sessionStorage.removeItem("periodx_active_report"); } catch (err) {}
-    hideReportBanner();
+      e.stopPropagation();
+
+      reportBannerDismissed = true;
+      activeReportId = null;
+      activeSavedReportId = null;
+      activeReportMeta = null;
+
+      try {
+        sessionStorage.removeItem("periodx_active_report");
+      } catch (err) {}
+
+      hideReportBanner();
   });
 
   /* ---------- Report JSON modal ----------
@@ -832,7 +840,11 @@
     jsonModalOverlay.classList.add("show");
 
     try {
-      const res = await fetch(`/api/slm-report-json/${encodeURIComponent(activeReportId)}`);
+      const endpoint = activeSavedReportId
+       ? `/api/slm-saved-report-json/${encodeURIComponent(activeSavedReportId)}`
+       : `/api/slm-report-json/${encodeURIComponent(activeReportId)}`;
+
+      const res = await fetch(endpoint);
       const data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data.error || "Could not load report JSON.");
@@ -970,7 +982,8 @@
         body: JSON.stringify({
           prompt: userText,
           history: conversationHistory,
-          report_id: activeReportId || undefined
+          report_id: activeReportId || undefined,
+          saved_report_id: activeSavedReportId || undefined
         })
       });
       const data = await response.json();
