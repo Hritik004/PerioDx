@@ -1636,7 +1636,7 @@ def ask_perio_ai():
     if not user_prompt:
         return jsonify({"success": False, "error": "No prompt provided"}), 400
 
-    MAX_HISTORY_TURNS = 2  # last 6 messages (3 user+assistant pairs)
+    MAX_HISTORY_TURNS = 4  # last 6 messages (3 user+assistant pairs)
     history = data.get('history', [])
     if isinstance(history, list) and len(history) > MAX_HISTORY_TURNS:
         history = history[-MAX_HISTORY_TURNS:]

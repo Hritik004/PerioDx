@@ -528,6 +528,70 @@
     .chat-modal-overlay.minimized .chat-modal{width:260px;height:190px;right:12px;bottom:12px;}
   }
 
+
+
+
+    .robot-fab{
+    position:fixed;
+    bottom:26px;
+    right:26px;
+    width:76px;height:76px;
+    border-radius:50%;
+    background:transparent;
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;
+    z-index:150;
+    border:none;
+    filter:drop-shadow(0 14px 26px rgba(76,63,180,0.32));
+    transition:transform .18s ease, filter .18s ease;
+    animation:robot-float 3.2s ease-in-out infinite;
+  }
+  .robot-fab:hover{
+    transform:translateY(-4px) scale(1.06);
+    filter:drop-shadow(0 20px 34px rgba(76,63,180,0.42));
+    animation-play-state:paused;
+  }
+  .robot-fab svg{ width:100%; height:100%; display:block; overflow:visible; }
+
+  @keyframes robot-float{
+    0%,100%{ transform:translateY(0) rotate(0deg); }
+    50%{ transform:translateY(-8px) rotate(-1.5deg); }
+  }
+  @keyframes antenna-wiggle{
+    0%,100%{ transform:rotate(0deg); }
+    25%{ transform:rotate(-6deg); }
+    75%{ transform:rotate(6deg); }
+  }
+  @keyframes eye-blink{
+    0%,88%,100%{ opacity:1; }
+    92%{ opacity:0.15; }
+  }
+  @keyframes bubble-pulse{
+    0%,100%{ transform:scale(1); opacity:0.95; }
+    50%{ transform:scale(1.08); opacity:1; }
+  }
+
+  .rf-antenna{ transform-origin:52px 14px; animation:antenna-wiggle 2.4s ease-in-out infinite; }
+  .rf-eyes{ animation:eye-blink 4s ease-in-out infinite; }
+  .rf-bubble{ transform-origin:16px 20px; animation:bubble-pulse 2.6s ease-in-out infinite; }
+
+  @media (prefers-reduced-motion: reduce){
+    .robot-fab, .rf-antenna, .rf-eyes, .rf-bubble{ animation:none; }
+  }
+  @media (max-width:900px){
+    .robot-fab{ bottom:18px; right:18px; width:64px; height:64px; }
+  }
+
+
+
+
+
+
+
+
+
+
+
   /* ---------------- save report modal ---------------- */
   .save-modal-overlay{
     position:fixed;inset:0;background:var(--overlay);
@@ -753,16 +817,7 @@
         </div>
       </div>
 
-      <div class="stats-row">
-        <div class="stat-card">
-          <div class="n">{{ scan_count|default(0) }}</div>
-          <div class="l">Scans analyzed</div>
-        </div>
-        <div class="stat-card">
-          <div class="n">{{ flagged_count|default(0) }}</div>
-          <div class="l">Flagged for review</div>
-        </div>
-      </div>
+
     </section>
 
     <!-- ===== DIAGNOSE ===== -->
@@ -1046,6 +1101,57 @@
     </div>
   </div>
 </div>
+
+
+<button class="robot-fab" id="robotFabBtn" type="button" aria-label="Chat with PerioDx AI assistant" title="Ask PerioDx AI">
+  <svg viewBox="0 0 68 72" xmlns="http://www.w3.org/2000/svg">
+    <!-- speech bubble -->
+    <g class="rf-bubble">
+      <path d="M4 8h20a5 5 0 0 1 5 5v8a5 5 0 0 1-5 5h-9l-6 6v-6H4a5 5 0 0 1-5-5v-8a5 5 0 0 1 5-5z"
+            fill="var(--violet-2)"/>
+      <circle cx="10" cy="16.5" r="1.6" fill="#fff"/>
+      <circle cx="15.5" cy="16.5" r="1.6" fill="#fff"/>
+      <circle cx="21" cy="16.5" r="1.6" fill="#fff"/>
+    </g>
+
+    <!-- antenna -->
+    <g class="rf-antenna">
+      <line x1="52" y1="14" x2="52" y2="24" stroke="var(--violet-2)" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="52" cy="10" r="4.5" fill="var(--violet-1)"/>
+    </g>
+
+    <!-- head -->
+    <rect x="22" y="22" width="42" height="34" rx="16" fill="var(--violet-1)"/>
+    <rect x="22" y="22" width="42" height="34" rx="16" fill="url(#rfHeadShine)" opacity="0.5"/>
+
+    <!-- screen -->
+    <rect x="29" y="29" width="28" height="20" rx="9" fill="#1b1440"/>
+    <g class="rf-eyes">
+      <circle cx="38" cy="39" r="3.2" fill="#8fd8ff"/>
+      <circle cx="48" cy="39" r="3.2" fill="#8fd8ff"/>
+    </g>
+    <path d="M40 44.5c1.6 1.6 4.4 1.6 6 0" stroke="#8fd8ff" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+
+    <!-- ears -->
+    <circle cx="21" cy="39" r="5" fill="var(--violet-2)"/>
+    <circle cx="65" cy="39" r="5" fill="var(--violet-2)"/>
+
+    <!-- body -->
+    <path d="M26 58c0-4 3.5-7 8-7h12c4.5 0 8 3 8 7v3c0 6-6 11-14 11s-14-5-14-11v-3z" fill="var(--violet-3)"/>
+    <circle cx="43" cy="63" r="6" fill="var(--violet-1)"/>
+    <rect x="40.4" y="59.6" width="5.2" height="6" rx="2.6" fill="#fff"/>
+    <path d="M39 65.5c0 2.2 1.8 4 4 4s4-1.8 4-4" stroke="#fff" stroke-width="1.3" stroke-linecap="round" fill="none"/>
+
+    <defs>
+      <linearGradient id="rfHeadShine" x1="22" y1="22" x2="64" y2="56" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#fff" stop-opacity="0.35"/>
+        <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+  </svg>
+</button>
+
+
 
 <div class="toast" id="toast"><span class="dotok"></span><span id="toastMsg">Done</span></div>
 
@@ -1442,6 +1548,43 @@
     chatMinimized = false;
     chatFrame.src = 'about:blank';
   }
+
+
+
+
+  function openGeneralAIChat(){
+    // No report_id / saved_report_id handoff — general assistant only.
+    // Explicitly clear any leftover report context from a previous session
+    // so the chat page doesn't accidentally attach patient data.
+    try {
+      sessionStorage.removeItem('periodx_active_report');
+    } catch (err) {
+      console.error('Could not clear previous report handoff', err);
+    }
+
+    chatModalOverlay.classList.remove('fullscreen', 'minimized');
+    chatMinimized = false;
+    const modal = chatModalOverlay.querySelector('.chat-modal');
+    modal.style.left = modal.style.top = modal.style.right = modal.style.bottom = '';
+    chatFullscreenBtn.setAttribute('aria-label', 'Enter fullscreen');
+    chatFullscreenBtn.title = 'Enter fullscreen';
+    chatMinimizeBtn.setAttribute('aria-label', 'Minimize');
+    chatMinimizeBtn.title = 'Minimize';
+
+    chatFrame.src = '/chat';
+    chatModalOverlay.classList.add('show');
+  }
+
+  document.getElementById('robotFabBtn').addEventListener('click', openGeneralAIChat);
+
+
+
+
+
+
+
+
+
 
   chatModalOverlay.addEventListener('click', (e) => {
     if (chatMinimized) return;
