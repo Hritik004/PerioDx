@@ -2,9 +2,7 @@ Flask
 Flask-SQLAlchemy
 Flask-Mail
 Werkzeug
-qrcode
 PyMySQL
 python-dotenv
-SQLAlchemy
+requests
 google-auth
-itsdangerous
