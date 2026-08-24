@@ -1182,57 +1182,57 @@ def records():
     """Patients -> their saved reports -> per-tooth bone-loss detail."""
     if 'user_id' not in session:
         return redirect(url_for('login_student'))
- 
+
     user = User.query.get(session['user_id'])
     if not user:
         session.clear()
         return redirect(url_for('login_student'))
- 
+
     return render_template('records.html', user=user)
- 
- 
+
+
 
 def compute_tooth_bone_loss(cej_ac_distance_px, tooth_length_px):
     """
     Dynamically derive a tooth's bone-loss % + severity band from its two
     raw pixel measurements.
- 
+
     IMPORTANT: this must exactly match the formula used at diagnosis time
     in colab_server.py's process_image():
- 
+
         percentage_val = (cej_ac_distance_px / tooth_length_px) * 100
         percentage_val = max(0, percentage_val - 15)
- 
+
     i.e. NOT a plain ratio — there's a flat 15-point offset subtracted
     (and floored at 0) before it's treated as a bone-loss %. Only the raw
     cej_ac_distance_px / tooth_length_px get persisted to the DB (see
     ToothMeasurement), not the derived percentage, so this recomputation
     has to reproduce that offset or saved-report percentages will drift
     from what was actually shown when the scan was first diagnosed.
- 
+
     Nothing is cached — this runs fresh every time a saved report is
     opened in /records.
- 
+
     Returns (bone_loss_pct: float | None, status: str) where status is
     one of "normal", "mild", "moderate", "severe", "unmeasured".
     """
     if cej_ac_distance_px is None or tooth_length_px is None:
         return None, "unmeasured"
- 
+
     try:
         distance = float(cej_ac_distance_px)
         length = float(tooth_length_px)
     except (TypeError, ValueError):
         return None, "unmeasured"
- 
+
     if length <= 0:
         return None, "unmeasured"
- 
+
     pct = (distance / length) * 100
     pct = max(0.0, pct - 15)   # <-- matches colab_server.py's offset exactly
     pct = min(pct, 100.0)      # safety cap; colab_server.py has no upper bound
     pct = round(pct, 1)
- 
+
     if pct < 15:
         status = "normal"
     elif pct < 33:
@@ -1241,11 +1241,11 @@ def compute_tooth_bone_loss(cej_ac_distance_px, tooth_length_px):
         status = "moderate"
     else:
         status = "severe"
- 
+
     return pct, status
- 
- 
- 
+
+
+
 @app.route('/api/patients', methods=['GET'])
 def api_search_patients():
     """
@@ -1305,10 +1305,10 @@ def api_search_patients():
             "report_count": len(own_reports),
             "last_report_date": last_report_date.isoformat() if last_report_date else None
         })
- 
+
     return jsonify({"success": True, "patients": results}), 200
- 
- 
+
+
 @app.route('/api/patients/<int:patient_id>/reports', methods=['GET'])
 def api_patient_reports(patient_id):
     """All of THIS USER'S saved reports for one patient, newest first.
@@ -1326,7 +1326,7 @@ def api_patient_reports(patient_id):
     patient = Patient.query.get(patient_id)
     if not patient:
         return jsonify({"success": False, "message": f"No patient found with ID {patient_id}."}), 404
- 
+
     reports = (
         Report.query
         .filter_by(patient_id=patient_id, created_by_user_id=user_id)
@@ -1339,7 +1339,7 @@ def api_patient_reports(patient_id):
         # not found for them rather than leaking that the patient exists
         # under another clinician's account.
         return jsonify({"success": False, "message": f"No patient found with ID {patient_id}."}), 404
- 
+
     return jsonify({
         "success": True,
         "patient": {
@@ -1360,8 +1360,8 @@ def api_patient_reports(patient_id):
             for r in reports
         ]
     }), 200
- 
- 
+
+
 @app.route('/api/reports/<int:report_id>', methods=['GET'])
 def api_report_detail(report_id):
     """
@@ -1376,14 +1376,14 @@ def api_report_detail(report_id):
     """
     if 'user_id' not in session:
         return jsonify({"success": False, "message": "Not authenticated"}), 401
- 
+
     report = Report.query.get(report_id)
     if not report or report.created_by_user_id != session['user_id']:
         return jsonify({"success": False, "message": f"No report found with ID {report_id}."}), 404
- 
+
     patient = report.patient
     measurements_by_tooth = {m.tooth_number: m for m in report.tooth_measurements}
- 
+
     def build_jaw(order):
         jaw = []
         for tooth_number in order:
@@ -1399,7 +1399,7 @@ def api_report_detail(report_id):
                     "tooth_length_px": None
                 })
                 continue
- 
+
             pct, status = compute_tooth_bone_loss(m.cej_ac_distance_px, m.tooth_length_px)
             jaw.append({
                 "tooth_number": tooth_number,
@@ -1409,12 +1409,12 @@ def api_report_detail(report_id):
                 "tooth_length_px": float(m.tooth_length_px) if m.tooth_length_px is not None else None
             })
         return jaw
- 
+
     teeth = {
         "upper": build_jaw(FDI_UPPER_ORDER),
         "lower": build_jaw(FDI_LOWER_ORDER)
     }
- 
+
     return jsonify({
         "success": True,
         "report": {
@@ -1432,7 +1432,209 @@ def api_report_detail(report_id):
         },
         "teeth": teeth
     }), 200
- 
+
+
+
+
+
+# SLM (small language model) chat server -- a SEPARATE Colab/ngrok tunnel
+# from the diagnostic YOLO pipeline (COLAB_SERVER_URL above). Set this in
+# .env once the periodx_slm notebook's last cell prints its static domain.
+SLM_SERVER_URL = os.getenv(
+    "SLM_SERVER_URL",
+    "https://alive-chemicals-gusto.ngrok-free.dev"
+)
+
+
+def build_tooth_report_json(cached_report):
+    """
+    Distills a cached diagnosis (report_cache/<uuid>.json) down to exactly
+    what the SLM needs: per-tooth cej_ac_distance_px, tooth_length_px, and
+    bone_loss_pct -- recomputed fresh via compute_tooth_bone_loss so it can
+    never drift from what colab_server.py actually produced -- plus an
+    overall stage estimate.
+
+    Deliberately NOT the raw cached report: that also carries the four
+    base64 report images, which are megabytes the model has no use for and
+    would blow past its context window.
+    """
+    teeth = (cached_report or {}).get('teeth') or {}
+    upper_in = teeth.get('upper') or []
+    lower_in = teeth.get('lower') or []
+
+    def build_jaw(jaw_teeth, order):
+        jaw_out = []
+        for tooth_data, tooth_number in zip(jaw_teeth, order):
+            if tooth_data.get('status') == 'missing':
+                jaw_out.append({
+                    "tooth_number": tooth_number,
+                    "status": "missing",
+                    "cej_ac_distance_px": None,
+                    "tooth_length_px": None,
+                    "bone_loss_pct": None
+                })
+                continue
+
+            cej_ac = tooth_data.get('cej_ac_distance_px')
+            length = tooth_data.get('tooth_length_px')
+            pct, status = compute_tooth_bone_loss(cej_ac, length)
+
+            jaw_out.append({
+                "tooth_number": tooth_number,
+                "status": status,
+                "cej_ac_distance_px": cej_ac,
+                "tooth_length_px": length,
+                "bone_loss_pct": pct
+            })
+        return jaw_out
+
+    upper_out = build_jaw(upper_in, FDI_UPPER_ORDER)
+    lower_out = build_jaw(lower_in, FDI_LOWER_ORDER)
+
+    stage = compute_periodontitis_stage({"upper": upper_out, "lower": lower_out})
+
+    return {
+        "periodontitis_stage_estimate": stage,
+        "teeth": {"upper": upper_out, "lower": lower_out}
+    }
+
+
+
+
+
+
+
+@app.route('/api/slm-report-json/<report_id>', methods=['GET'])
+def api_slm_report_json(report_id):
+    """
+    Returns the exact distilled per-tooth JSON that /ask_perio_ai sends to
+    the SLM for this report_id. Backs the "Diagnostic report loaded"
+    banner in periodx_chat.html -- lets a clinician inspect precisely
+    what data the assistant is reasoning from, not the raw report_cache
+    blob (which also carries the four base64 report images).
+    """
+    if 'user_id' not in session:
+        return jsonify({"success": False, "error": "Not authenticated"}), 401
+
+    cached_report = load_cached_report(report_id, session['user_id'])
+    if not cached_report:
+        return jsonify({"success": False, "error": "Report not found."}), 404
+
+    return jsonify({
+        "success": True,
+        "report_id": report_id,
+        "report": build_tooth_report_json(cached_report)
+    }), 200
+
+
+
+
+
+
+
+def looks_degenerate(text, max_repeat=8):
+    """
+    Detects when the SLM has fallen into a repetition loop (e.g. a wall
+    of "the the the ..."), a known failure mode for small quantized
+    models when input gets too long or generation is under-constrained.
+    Returns True if any run of `max_repeat` consecutive words is a
+    single repeated word.
+    """
+    words = text.split()
+    if len(words) < max_repeat:
+        return False
+    return any(
+        len(set(words[i:i + max_repeat])) == 1
+        for i in range(len(words) - max_repeat)
+    )
+
+
+@app.route('/ask_perio_ai', methods=['POST'])
+def ask_perio_ai():
+    """
+    Proxies one chat turn to the PerioDx SLM (/api/chat on the notebook's
+    ngrok tunnel), attaching the distilled per-tooth JSON -- not the raw
+    report_cache blob -- so the model gets just the numbers it needs.
+    """
+    if 'user_id' not in session:
+        return jsonify({"success": False, "error": "Not authenticated"}), 401
+
+    data = request.get_json(silent=True) or {}
+    user_prompt = (data.get('prompt') or '').strip()
+    report_id = data.get('report_id')
+
+    if not user_prompt:
+        return jsonify({"success": False, "error": "No prompt provided"}), 400
+
+    MAX_HISTORY_TURNS = 2  # last 6 messages (3 user+assistant pairs)
+    history = data.get('history', [])
+    if isinstance(history, list) and len(history) > MAX_HISTORY_TURNS:
+        history = history[-MAX_HISTORY_TURNS:]
+
+    payload = {
+        "prompt": user_prompt,
+        "history": history if isinstance(history, list) else []
+    }
+
+    report_meta = None
+    if report_id:
+        cached_report = load_cached_report(report_id, session['user_id'])
+        if cached_report:
+            payload["report"] = build_tooth_report_json(cached_report)
+            report_meta = {
+                "report_id": report_id,
+                "periodontitis_stage": payload["report"]["periodontitis_stage_estimate"]
+            }
+
+    headers = {"ngrok-skip-browser-warning": "true"}
+
+    try:
+        slm_response = requests.post(
+            f"{SLM_SERVER_URL}/api/chat",
+            json=payload,
+            headers=headers,
+            timeout=120
+        )
+        slm_response.raise_for_status()
+        result = slm_response.json()
+    except requests.exceptions.Timeout:
+        return jsonify({"success": False, "error": "The AI assistant took too long to respond."}), 504
+    except requests.exceptions.ConnectionError:
+        return jsonify({"success": False, "error": "Could not reach the AI assistant server."}), 502
+    except requests.exceptions.RequestException as e:
+        return jsonify({"success": False, "error": f"AI assistant error: {str(e)}"}), 502
+    except ValueError:
+        return jsonify({"success": False, "error": "AI assistant returned an invalid response."}), 502
+
+    if not result.get('success'):
+        return jsonify({"success": False, "error": result.get('error', 'AI assistant returned an error')}), 502
+
+    response_text = result.get('response', '')
+    if looks_degenerate(response_text):
+        response_text = (
+            "Sorry, I ran into trouble generating a clear answer to that. "
+            "Could you ask about one thing at a time?"
+        )
+
+    response_payload = {"success": True, "response": response_text}
+    if report_meta:
+        response_payload["report"] = report_meta
+
+    return jsonify(response_payload), 200
+
+
+@app.route('/clear_chat', methods=['POST'])
+def clear_chat():
+    # The SLM is stateless per request -- periodx_chat.html sends its full
+    # conversationHistory with every /ask_perio_ai call, so there's no
+    # server-side memory to clear yet. Kept as a no-op so the frontend's
+    # DOMContentLoaded call to /clear_chat doesn't 404.
+    if 'user_id' not in session:
+        return jsonify({"success": False, "message": "Not authenticated"}), 401
+    return jsonify({"success": True}), 200
+
+
+
 
 
 @app.route('/chat')
