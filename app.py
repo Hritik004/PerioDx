@@ -42,7 +42,7 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 # ---------------------------------------------------------------------------
 COLAB_SERVER_URL = os.getenv(
     "COLAB_SERVER_URL",
-    "https://sized-theodora-diatomaceous.ngrok-free.dev"
+    "https://alive-chemicals-gusto.ngrok-free.dev"
 )
 
 # Where generated reports (the 4 base64 images + per-tooth map) are cached
