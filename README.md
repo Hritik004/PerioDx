@@ -9,6 +9,10 @@
 The system combines a **Flask web application**, **YOLO-based computer vision models**, **MySQL databases**, and a **small language model (SLM)** to provide an integrated periodontal diagnostic workflow.
 
 ---
+## 🚀 Live Demo
+
+👉 [**Visit PerioDx Live Demo**](https://ruissmarthome.pythonanywhere.com/)
+
 
 ## ✨ Features
 
