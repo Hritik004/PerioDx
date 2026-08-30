@@ -1207,6 +1207,18 @@
     btn.addEventListener('click', ()=> goToView(btn.dataset.view));
   });
 
+
+    // Open a specific tab when arriving via a full page load, e.g.
+    // /dashboard_user?view=diagnose or /dashboard_user?view=settings
+    (function initViewFromQuery(){
+      const params = new URLSearchParams(window.location.search);
+      const requested = params.get('view');
+      if (requested && document.getElementById('view-' + requested)) {
+        goToView(requested);
+      }
+    })();
+
+
   // ---------------- Toast notification system ----------------
   let toastTimer;
   function showToast(msg){
