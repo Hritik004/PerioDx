@@ -158,6 +158,13 @@ def api_diagnose():
         # Cache the report on disk (NOT in the session — see REPORTS_DIR
         # comment in config.py). Only the small report_id is kept in the
         # session so /see-report can look it back up after a reload.
+        #
+        # This cache entry is temporary: once the clinician saves this
+        # report to a patient record (see /api/save-report below), the
+        # cache file for this report_id is deleted automatically and
+        # everything downstream (report images, the AI assistant, the
+        # JSON viewer) switches over to reading the persisted DB copy
+        # instead.
         report_record = {
             "id": report_id,
             "user_id": session['user_id'],
@@ -195,53 +202,6 @@ def api_diagnose():
         }), 502
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
-
-
-# ==========================================
-# --- NEW: CLEAR REPORT CACHE ---
-# ==========================================
-@app.route('/api/clear-report-cache', methods=['POST'])
-def clear_report_cache():
-    """
-    Deletes every cached report JSON on disk that belongs to the logged-in
-    user (the report_cache/<uuid>.json files written by /api/diagnose).
-
-    This is scoped to the current user only — it never touches another
-    clinician's cached reports — and it only affects the on-disk cache,
-    not anything already persisted via /api/save-report (Report /
-    ToothMeasurement rows are untouched). Once a file is removed here,
-    /see-report and "See report" for that diagnosis can no longer render
-    it, and /api/save-report for that report_id will start returning
-    "Cached report not found."
-    """
-    if 'user_id' not in session:
-        return jsonify({"success": False, "message": "Not authenticated"}), 401
-
-    user_id = session['user_id']
-    cleared_count = 0
-
-    for filename in os.listdir(REPORTS_DIR):
-        if not filename.endswith('.json'):
-            continue
-        file_path = os.path.join(REPORTS_DIR, filename)
-        try:
-            with open(file_path, 'r') as f:
-                record = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            continue
-
-        if record.get('user_id') != user_id:
-            continue
-
-        try:
-            os.remove(file_path)
-            cleared_count += 1
-        except OSError:
-            continue
-
-    session.pop('last_report_id', None)
-
-    return jsonify({"success": True, "cleared_count": cleared_count}), 200
 
 
 @app.route('/see-report')
@@ -349,6 +309,14 @@ def save_report():
     data — nothing has been flushed/committed yet when the very first
     INSERT hits it, so it's safe to roll back and retry once on a fresh
     connection rather than surfacing a hard failure to the clinician.
+
+    CACHE NOTE: once the report is durably committed to the database, the
+    on-disk cache file for report_id is deleted automatically (see the
+    end of the successful branch below) — there's no more need to keep it
+    around, and everything downstream (report images, the AI assistant's
+    per-tooth JSON, the JSON viewer) should read from the saved DB copy
+    (report_row.id / "saved_report_id") from that point on, not the old
+    cache report_id.
     """
     if 'user_id' not in session:
         return jsonify({"success": False, "message": "Not authenticated"}), 401
@@ -460,6 +428,28 @@ def save_report():
                     saved_count += 1
 
             db.session.commit()
+
+            # ---- Auto-clear the on-disk cache entry for this report --------
+            # The report now lives durably in the database, so the temporary
+            # cache file is no longer needed. Removing it here (rather than
+            # requiring a manual "clear cache" action) keeps the cache from
+            # accumulating stale/duplicate copies of reports that are
+            # already saved, and it's what pushes /ask_perio_ai and the
+            # JSON viewer over to the saved-report code path (report_id
+            # will no longer resolve via load_cached_report, so callers
+            # must use the new saved_report_id going forward).
+            try:
+                if report_id:
+                    stale_cache_path = os.path.join(REPORTS_DIR, f"{report_id}.json")
+                    if os.path.exists(stale_cache_path):
+                        os.remove(stale_cache_path)
+            except OSError as cache_err:
+                # Never fail the save because cache cleanup failed — the
+                # report is already safely committed at this point.
+                print(f"SAVE REPORT: could not clear cache for {report_id}: {cache_err}")
+
+            if session.get('last_report_id') == report_id:
+                session.pop('last_report_id', None)
 
             return jsonify({
                 "success": True,
@@ -719,6 +709,11 @@ def api_slm_report_json(report_id):
     banner in periodx_chat.html -- lets a clinician inspect precisely
     what data the assistant is reasoning from, not the raw report_cache
     blob (which also carries the four base64 report images).
+
+    NOTE: once a report has been saved, its cache entry no longer exists
+    (see the auto-clear step in /api/save-report) — callers should switch
+    to /api/slm-saved-report-json/<saved_report_id> at that point instead
+    of continuing to call this endpoint with the old cache report_id.
     """
     if 'user_id' not in session:
         return jsonify({"success": False, "error": "Not authenticated"}), 401
@@ -740,6 +735,12 @@ def ask_perio_ai():
     Proxies one chat turn to the PerioDx SLM (/api/chat on the notebook's
     ngrok tunnel), attaching the distilled per-tooth JSON -- not the raw
     report_cache blob -- so the model gets just the numbers it needs.
+
+    Once a report has been saved (see /api/save-report), its cache entry
+    is deleted automatically, so the frontend passes saved_report_id
+    instead of report_id from that point on. saved_report_id is checked
+    first below and, when present, is always sourced live from the
+    database rather than the (now-gone) cache file.
     """
     if 'user_id' not in session:
         return jsonify({"success": False, "error": "Not authenticated"}), 401

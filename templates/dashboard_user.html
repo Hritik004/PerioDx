@@ -1379,7 +1379,7 @@
   const smSectionNew = document.getElementById('smSectionNew');
 
   let smPatientMode = 'existing';
-  let lastSavedPatient = null; // { patient_id, periodontitis_stage } once saved
+  let lastSavedPatient = null; // { patient_id, saved_report_id, periodontitis_stage } once saved
 
   function smSetMode(mode){
     smPatientMode = mode;
@@ -1477,8 +1477,14 @@
       smMsg.textContent = `Saved — patient #${data.patient_id}, periodontitis stage: ${data.periodontitis_stage}.`;
       smMsg.className = 'sm-msg ok';
 
+      // Once a report is saved, the on-disk cache entry for report_id is
+      // deleted server-side (see /api/save-report), so from here on the
+      // "See report" images can no longer be re-fetched from cache and
+      // the AI assistant / JSON views should read from the saved DB
+      // report instead (saved_report_id), not the old cache report_id.
       lastSavedPatient = {
         patient_id: data.patient_id,
+        saved_report_id: data.report_id,
         periodontitis_stage: data.periodontitis_stage
       };
 
@@ -1489,6 +1495,22 @@
       }
       const saveBtn = document.getElementById('saveReportBtn');
       if (saveBtn) saveBtn.disabled = true;
+
+      // "See report" stays enabled — its images/teeth are already held in
+      // frontend memory (lastReportImages / lastReportTeeth) from when the
+      // pipeline ran, so it doesn't need the server-side cache file that
+      // was just cleared.
+
+      // Enable "View saved report" now that it exists in the DB — link
+      // straight to this specific report, not the patient's whole list.
+      const viewBtn = document.getElementById('viewPatientReportsBtn');
+      if (viewBtn) {
+        viewBtn.disabled = false;
+        viewBtn.onclick = () => {
+          window.location.href = '/records?patient_id=' + encodeURIComponent(data.patient_id) +
+            '&report_id=' + encodeURIComponent(data.report_id);
+        };
+      }
 
       showToast('Report saved');
       setTimeout(closeSaveModal, 1400);
@@ -1522,12 +1544,20 @@
   let chatDragRAF = null;
 
   function openAIChat(){
-    if (!lastReportId) { showToast('Run a diagnosis first'); return; }
+    if (!lastReportId && !lastSavedPatient) { showToast('Run a diagnosis first'); return; }
 
-    const handoff = { report_id: lastReportId };
+    // Once a report has been saved, the on-disk cache entry is deleted
+    // server-side, so the chat must load its per-tooth JSON from the
+    // saved database report (saved_report_id) instead of the old cache
+    // report_id — /ask_perio_ai already prioritizes saved_report_id when
+    // present.
+    const handoff = {};
     if (lastSavedPatient) {
+      handoff.saved_report_id = lastSavedPatient.saved_report_id;
       handoff.patient_id = lastSavedPatient.patient_id;
       handoff.periodontitis_stage = lastSavedPatient.periodontitis_stage;
+    } else {
+      handoff.report_id = lastReportId;
     }
 
     try {
@@ -1865,13 +1895,13 @@
       saveReportBtn.onclick = openSaveModal;
       btnRow.appendChild(saveReportBtn);
 
-      const clearCacheBtn = document.createElement('button');
-      clearCacheBtn.type = 'button';
-      clearCacheBtn.className = 'btn-ghost';
-      clearCacheBtn.id = 'clearCacheBtn';
-      clearCacheBtn.textContent = 'Clear report cache';
-      clearCacheBtn.onclick = clearReportCache;
-      btnRow.appendChild(clearCacheBtn);
+      const viewPatientReportsBtn = document.createElement('button');
+      viewPatientReportsBtn.type = 'button';
+      viewPatientReportsBtn.className = 'btn-ghost';
+      viewPatientReportsBtn.id = 'viewPatientReportsBtn';
+      viewPatientReportsBtn.textContent = 'View saved report';
+      viewPatientReportsBtn.disabled = true; // enabled once the report is saved
+      btnRow.appendChild(viewPatientReportsBtn);
 
       const statusSpan = document.createElement('span');
       statusSpan.className = 'save-status-inline';
@@ -1891,48 +1921,6 @@
     } finally {
       runPipelineBtn.disabled = false;
       runPipelineBtn.textContent = 'Run diagnostic pipeline';
-    }
-  }
-
-  // ---------------- Clear report cache ----------------
-  async function clearReportCache(){
-    const confirmed = window.confirm(
-      "This permanently deletes all of your cached report images, including the " +
-      "one currently open — it can't be viewed again after this (anything you've " +
-      "already saved to a patient record is unaffected). Continue?"
-    );
-    if (!confirmed) return;
-
-    const clearBtn = document.getElementById('clearCacheBtn');
-    if (clearBtn) { clearBtn.disabled = true; clearBtn.textContent = 'Clearing…'; }
-
-    try {
-      const response = await fetch('/api/clear-report-cache', { method: 'POST' });
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || 'Failed to clear report cache.');
-      }
-
-      const seeBtn = document.getElementById('seeReportBtn');
-      if (seeBtn) seeBtn.disabled = true;
-
-      const saveBtn = document.getElementById('saveReportBtn');
-      if (saveBtn) saveBtn.disabled = true;
-
-      const chatBtn = document.getElementById('chatAiBtn');
-      if (chatBtn) chatBtn.disabled = true;
-
-      lastReportImages = null;
-      lastReportTeeth = null;
-      lastReportId = null;
-      lastSavedPatient = null;
-
-      if (clearBtn) clearBtn.textContent = 'Cache cleared';
-      showToast(`Report cache cleared (${data.cleared_count} file${data.cleared_count === 1 ? '' : 's'})`);
-    } catch (err) {
-      if (clearBtn) { clearBtn.disabled = false; clearBtn.textContent = 'Clear report cache'; }
-      showToast('Failed to clear cache: ' + err.message);
     }
   }
 

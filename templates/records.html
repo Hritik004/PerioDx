@@ -664,6 +664,7 @@
     clearTimeout(searchDebounce);
     searchDebounce = setTimeout(() => loadPatients(searchInput.value.trim()), 300);
   });
+
   searchClearBtn.addEventListener('click', () => {
     searchInput.value = '';
     searchClearBtn.style.display = 'none';
@@ -915,7 +916,20 @@
   }
 
   // Initial load
-  loadPatients('');
+    // Initial load — deep-link straight to a report if the URL has
+  // ?patient_id=X&report_id=Y (e.g. from "View saved report" after saving).
+  (function initFromQuery(){
+    const params = new URLSearchParams(window.location.search);
+    const reportId = params.get('report_id');
+    const patientId = params.get('patient_id');
+
+    loadPatients('');
+
+    (async () => {
+      if (patientId) await openPatient(patientId); // fills the Reports panel + back button
+      if (reportId) await openReport(reportId);     // then jumps to the exact report
+    })();
+  })();
 </script>
 
 </body>
