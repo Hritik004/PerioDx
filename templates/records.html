@@ -69,6 +69,7 @@
   .logo-row{display:flex;align-items:center;justify-content:space-between;padding:6px 10px 26px;}
   .logo{font-family:var(--font-display);font-weight:600;font-size:20px;display:flex;align-items:center;gap:9px;letter-spacing:-0.01em;}
   .logo .dot{width:9px;height:9px;border-radius:2px;background:linear-gradient(135deg,var(--violet-1),var(--mint));flex-shrink:0;}
+  .logo .brand-mark{width:28px;height:28px;border-radius:8px;object-fit:cover;flex-shrink:0;}
   .theme-toggle{
     width:32px;height:32px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
     border:1px solid var(--hair);background:var(--card);color:var(--muted);
@@ -313,7 +314,10 @@
 <div class="shell">
   <aside class="sidebar">
     <div class="logo-row">
-      <a href="/dashboard_user" class="logo"><span class="dot"></span>PerioDx</a>
+      <a href="/dashboard_user" class="logo">
+          <img src="{{ url_for('static', filename='img/periodx-logo.png') }}" alt="PerioDx logo" class="brand-mark">
+          PerioDx
+      </a>
       <button class="theme-toggle" id="themeToggle" type="button" title="Toggle theme" aria-label="Toggle light/dark theme">
         <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="4"></circle><line x1="12" y1="1.5" x2="12" y2="4"></line><line x1="12" y1="20" x2="12" y2="22.5"></line>

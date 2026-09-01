@@ -424,8 +424,14 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, Image
 )
+
+
+# Path to the PerioDx/ACE brand mark used in the PDF header. Adjust this
+# to wherever the logo actually lives relative to this module (e.g. your
+# Flask app's static/img folder).
+LOGO_PATH = os.path.join(os.path.dirname(__file__), "static", "img", "periodx-logo.png")
 
 _STAGE_COLORS = {
     "Stage I": colors.HexColor("#00a67e"),
@@ -592,13 +598,38 @@ def build_report_pdf(report, patient, teeth: dict, generated_by=None) -> BytesIO
 
     story = []
 
-    # ---- Header ----------------------------------------------------------
-    story.append(Paragraph("PerioDx Diagnostic Report", title_style))
-    story.append(Paragraph(
-        f"Report #{report.id} &nbsp;&middot;&nbsp; "
-        f"Generated {report.report_date.strftime('%d %b %Y, %H:%M')}",
-        sub_style
-    ))
+
+    # ---- Header (logo + title) --------------------------------------------
+    header_text = [
+        Paragraph("PerioDx Diagnostic Report", title_style),
+        Paragraph(
+            f"Report #{report.id} &nbsp;&middot;&nbsp; "
+            f"Generated {report.report_date.strftime('%d %b %Y, %H:%M')}",
+            sub_style
+        ),
+    ]
+
+    if os.path.exists(LOGO_PATH):
+        logo = Image(LOGO_PATH, width=46, height=46)
+        header_table = Table(
+            [[logo, header_text]],
+            colWidths=[56, doc.width - 56],
+        )
+        header_table.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (0, 0), 0),
+            ("RIGHTPADDING", (0, 0), (0, 0), 10),
+            ("LEFTPADDING", (1, 0), (1, 0), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ]))
+        story.append(header_table)
+    else:
+        # Falls back to the old text-only header if the logo file is missing,
+        # so a bad path never breaks report generation.
+        story.extend(header_text)
+
+    story.append(Spacer(1, 6))
     story.append(HRFlowable(width="100%", color=colors.HexColor("#e5e3f0"), thickness=1))
     story.append(Spacer(1, 10))
 
