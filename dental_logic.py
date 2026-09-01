@@ -16,7 +16,8 @@ return plain values out, so they're easy to unit test independent of the app.
 import os
 import json
 from flask import abort
-
+from reportlab.platypus import Flowable
+from reportlab.lib.enums import TA_CENTER
 
 # ---------------------------------------------------------------------------
 # Per-tooth position -> FDI tooth number mapping
@@ -44,6 +45,49 @@ FDI_UPPER_ORDER = ["18", "17", "16", "15", "14", "13", "12", "11",
 
 FDI_LOWER_ORDER = ["48", "47", "46", "45", "44", "43", "42", "41",
                     "31", "32", "33", "34", "35", "36", "37", "38"]
+
+
+# ---------------------------------------------------------------------------
+# FDI tooth number -> human-readable name, for the PDF report and anywhere
+# else a clinician-facing tooth name is needed (as opposed to the raw FDI
+# code like "16").
+# ---------------------------------------------------------------------------
+_FDI_BASE_NAMES = {
+    "1": "Central Incisor",
+    "2": "Lateral Incisor",
+    "3": "Canine",
+    "4": "First Premolar",
+    "5": "Second Premolar",
+    "6": "First Molar",
+    "7": "Second Molar",
+    "8": "Third Molar (Wisdom)",
+}
+
+_FDI_QUADRANT_LABELS = {
+    "1": "Upper Right",
+    "2": "Upper Left",
+    "3": "Lower Left",
+    "4": "Lower Right",
+}
+
+def fdi_tooth_name(tooth_number: str) -> str:
+    """'16' -> 'Upper Right First Molar'. Falls back to the raw code if the
+    FDI number is somehow outside the standard 11-48 permanent-teeth range."""
+    if not tooth_number or len(tooth_number) != 2:
+        return tooth_number or "Unknown"
+    quadrant, position = tooth_number[0], tooth_number[1]
+    quadrant_label = _FDI_QUADRANT_LABELS.get(quadrant)
+    base_name = _FDI_BASE_NAMES.get(position)
+    if not quadrant_label or not base_name:
+        return tooth_number
+    return f"{quadrant_label} {base_name}"
+
+
+FDI_TOOTH_NAMES = {
+    num: fdi_tooth_name(num)
+    for num in FDI_UPPER_ORDER + FDI_LOWER_ORDER
+}
+
 
 # Third molars are routinely absent for reasons unrelated to periodontitis
 # (never erupted, prophylactic extraction, impaction), so they're excluded
@@ -366,3 +410,352 @@ def looks_degenerate(text, max_repeat=8):
         len(set(words[i:i + max_repeat])) == 1
         for i in range(len(words) - max_repeat)
     )
+
+
+
+
+
+# ---------------------------------------------------------------------------
+# PDF report export (used by GET /api/reports/<id>/pdf in app.py)
+# ---------------------------------------------------------------------------
+from io import BytesIO
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import mm
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+)
+
+_STAGE_COLORS = {
+    "Stage I": colors.HexColor("#00a67e"),
+    "Stage II": colors.HexColor("#c9880a"),
+    "Stage III": colors.HexColor("#c65a34"),
+    "Stage IV": colors.HexColor("#b03030"),
+    "Not Classified": colors.HexColor("#6b6885"),
+}
+
+_STATUS_ROW_COLORS = {
+    "severe": colors.HexColor("#fdeaea"),
+    "moderate": colors.HexColor("#fdf0e8"),
+    "mild": colors.HexColor("#fdf6e3"),
+    "normal": colors.HexColor("#e8f9f3"),
+}
+
+_STATUS_LABELS = {
+    "normal": "Normal",
+    "mild": "Mild",
+    "moderate": "Moderate",
+    "severe": "Severe",
+    "unmeasured": "Unmeasured",
+    "missing": "Not detected",
+}
+
+
+
+
+class ToothMapRow(Flowable):
+    """
+    Draws one row of FDI tooth boxes — rounded, color-coded by bone-loss
+    severity, each showing the FDI number on top and the bone-loss % (or a
+    blank/greyed box for undetected teeth) below. Mirrors the .tm-tooth
+    boxes in the web UI (dashboard_user.html / records.html).
+    """
+    BASE_BOX_W = 30
+    BOX_H = 34
+    BASE_GAP = 3
+
+    _FILL = {
+        "normal": colors.HexColor("#e8f9f3"),
+        "mild": colors.HexColor("#fdf6e3"),
+        "moderate": colors.HexColor("#fdf0e8"),
+        "severe": colors.HexColor("#fdeaea"),
+        "unmeasured": colors.HexColor("#f3f2f8"),
+        "missing": colors.HexColor("#f7f6fb"),
+    }
+    _BORDER = {
+        "normal": colors.HexColor("#00c896"),
+        "mild": colors.HexColor("#f5a524"),
+        "moderate": colors.HexColor("#ef7a54"),
+        "severe": colors.HexColor("#d43d3d"),
+        "unmeasured": colors.HexColor("#d8d5e8"),
+        "missing": colors.HexColor("#e5e3f0"),
+    }
+
+    def __init__(self, jaw_teeth, width):
+        Flowable.__init__(self)
+        self.jaw_teeth = jaw_teeth
+        self.width = width
+        self.height = self.BOX_H
+
+        n = max(len(jaw_teeth), 1)
+        total_box_w = n * self.BASE_BOX_W + (n - 1) * self.BASE_GAP
+        if total_box_w > width:
+            scale = width / total_box_w
+            self.box_w = self.BASE_BOX_W * scale
+            self.gap = self.BASE_GAP * scale
+        else:
+            self.box_w = self.BASE_BOX_W
+            self.gap = self.BASE_GAP
+
+    def wrap(self, availWidth, availHeight):
+        return (self.width, self.height)
+
+    def draw(self):
+        c = self.canv
+        n = len(self.jaw_teeth)
+        total_w = n * self.box_w + (n - 1) * self.gap
+        x = (self.width - total_w) / 2.0  # center the row
+        y = 0
+
+        for t in self.jaw_teeth:
+            status = t.get("status") or "missing"
+            fill = self._FILL.get(status, self._FILL["missing"])
+            border = self._BORDER.get(status, self._BORDER["missing"])
+
+            c.setFillColor(fill)
+            c.setStrokeColor(border)
+            c.setLineWidth(1)
+            c.roundRect(x, y, self.box_w, self.BOX_H, 4, fill=1, stroke=1)
+
+            faded = colors.HexColor("#c7c4d9")
+            num_color = faded if status == "missing" else colors.HexColor("#6b6885")
+            c.setFillColor(num_color)
+            c.setFont("Helvetica-Bold", 6.5)
+            c.drawCentredString(x + self.box_w / 2, y + self.BOX_H - 12, str(t["tooth_number"]))
+
+            pct = t.get("bone_loss_pct")
+            if status == "missing":
+                label = ""
+            elif pct is not None:
+                label = f"{pct}%"
+            else:
+                label = "—"
+            pct_color = faded if status == "missing" else colors.HexColor("#211f36")
+            c.setFillColor(pct_color)
+            c.setFont("Helvetica-Bold", 7.5)
+            c.drawCentredString(x + self.box_w / 2, y + 6, label)
+
+            x += self.box_w + self.gap
+
+
+
+
+
+
+
+
+def build_report_pdf(report, patient, teeth: dict, generated_by=None) -> BytesIO:
+    """
+    Builds a full diagnostic-report PDF for one saved Report row.
+
+    report:  the Report model instance (id, report_date, periodontitis_stage, notes)
+    patient: the Patient model instance (id, first_name, last_name, phone, diabetic)
+    teeth:   {"upper": [...], "lower": [...]} in the same shape returned by
+             GET /api/reports/<id> (tooth_number, status, bone_loss_pct)
+    generated_by: the User model instance of the clinician downloading this
+             report (first_name, last_name, email) — shown in the summary
+             block as "Generated by". Optional; omitted from the PDF if None.
+
+    Returns an in-memory BytesIO positioned at 0, ready for send_file().
+    """
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=A4,
+        topMargin=22 * mm, bottomMargin=18 * mm,
+        leftMargin=18 * mm, rightMargin=18 * mm,
+    )
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "PerioTitle", parent=styles["Title"], fontSize=20, spaceAfter=2,
+        textColor=colors.HexColor("#211f36"),
+    )
+    sub_style = ParagraphStyle(
+        "PerioSub", parent=styles["Normal"], fontSize=10,
+        textColor=colors.HexColor("#6b6885"), spaceAfter=14,
+    )
+    h2_style = ParagraphStyle(
+        "PerioH2", parent=styles["Heading2"], fontSize=13, spaceBefore=14,
+        spaceAfter=8, textColor=colors.HexColor("#4f46e5"),
+    )
+    body_style = ParagraphStyle(
+        "PerioBody", parent=styles["Normal"], fontSize=10, leading=14,
+    )
+    legend_style = ParagraphStyle(
+        "PerioLegend", parent=styles["Normal"], fontSize=8.5, leading=12,
+        textColor=colors.HexColor("#211f36"),
+    )
+
+    stage = report.periodontitis_stage or "Not Classified"
+    stage_color = _STAGE_COLORS.get(stage, colors.HexColor("#6b6885"))
+
+    story = []
+
+    # ---- Header ----------------------------------------------------------
+    story.append(Paragraph("PerioDx Diagnostic Report", title_style))
+    story.append(Paragraph(
+        f"Report #{report.id} &nbsp;&middot;&nbsp; "
+        f"Generated {report.report_date.strftime('%d %b %Y, %H:%M')}",
+        sub_style
+    ))
+    story.append(HRFlowable(width="100%", color=colors.HexColor("#e5e3f0"), thickness=1))
+    story.append(Spacer(1, 10))
+
+    # ---- Patient + report summary table ----------------------------------
+    patient_name = f"{patient.first_name} {patient.last_name or ''}".strip()
+
+    summary_data = [
+        ["Patient", patient_name, "Patient ID", f"#{patient.id}"],
+        ["Phone", patient.phone or "—", "Diabetic", "Yes" if patient.diabetic else "No"],
+        ["Report ID", f"#{report.id}", "Periodontitis stage", stage],
+    ]
+
+    if generated_by is not None:
+        clinician_name = f"{generated_by.first_name} {generated_by.last_name or ''}".strip()
+        summary_data.append([
+            "Generated by", clinician_name,
+            "Clinician email", generated_by.email or "—"
+        ])
+
+    summary_table = Table(summary_data, colWidths=[70, 155, 100, 155])
+    summary_style = [
+        ("FONTSIZE", (0, 0), (-1, -1), 9.5),
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+        ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
+        ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#6b6885")),
+        ("TEXTCOLOR", (2, 0), (2, -1), colors.HexColor("#6b6885")),
+        ("TEXTCOLOR", (3, 2), (3, 2), stage_color),
+        ("FONTNAME", (3, 2), (3, 2), "Helvetica-Bold"),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("LINEBELOW", (0, 0), (-1, -2), 0.5, colors.HexColor("#eeecf7")),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#fbfaff")),
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e3f0")),
+    ]
+    summary_table.setStyle(TableStyle(summary_style))
+    story.append(summary_table)
+
+    if report.notes:
+        story.append(Spacer(1, 10))
+        story.append(Paragraph("<b>Notes</b>", body_style))
+        story.append(Paragraph(report.notes.replace("\n", "<br/>"), body_style))
+
+    # ---- Severity color legend --------------------------------------------
+    # Mirrors the legend shown under the tooth map in records.html /
+    # dashboard_user.html, so the color-coded rows in the per-tooth tables
+    # below are self-explanatory without cross-referencing the web app.
+    story.append(Spacer(1, 14))
+    story.append(Paragraph("Bone Loss Severity Legend", h2_style))
+
+    legend_items = [
+        (_STATUS_ROW_COLORS["normal"], colors.HexColor("#00a67e"), "Normal (<15%)"),
+        (_STATUS_ROW_COLORS["mild"], colors.HexColor("#c9880a"), "Mild (15–33%)"),
+        (_STATUS_ROW_COLORS["moderate"], colors.HexColor("#c65a34"), "Moderate (33–50%)"),
+        (_STATUS_ROW_COLORS["severe"], colors.HexColor("#b03030"), "Severe (>50%)"),
+        (colors.HexColor("#f3f2f8"), colors.HexColor("#6b6885"), "Unmeasured / missing"),
+    ]
+
+    legend_row = []
+    legend_style_cmds = [
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]
+    for idx, (fill, border, label) in enumerate(legend_items):
+        swatch_table = Table([[""]], colWidths=[10], rowHeights=[10])
+        swatch_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (0, 0), fill),
+            ("BOX", (0, 0), (0, 0), 1, border),
+        ]))
+        legend_row.append(swatch_table)
+        legend_row.append(Paragraph(label, legend_style))
+
+    legend_col_widths = []
+    for _ in legend_items:
+        legend_col_widths += [14, 95]
+
+    legend_table = Table([legend_row], colWidths=legend_col_widths)
+    legend_table.setStyle(TableStyle(legend_style_cmds))
+    story.append(legend_table)
+    story.append(Spacer(1, 4))
+    story.append(HRFlowable(width="100%", color=colors.HexColor("#e5e3f0"), thickness=1))
+
+
+    # ---- Visual tooth map (color-coded boxes, matches the web UI) --------
+    jaw_label_style = ParagraphStyle(
+        "PerioJawLabel", parent=styles["Normal"], fontSize=9,
+        alignment=TA_CENTER, textColor=colors.HexColor("#6b6885"),
+        fontName="Helvetica-Bold", spaceAfter=6,
+    )
+
+    story.append(Spacer(1, 8))
+    story.append(Paragraph("Tooth Map", h2_style))
+
+    story.append(Paragraph("UPPER JAW", jaw_label_style))
+    story.append(ToothMapRow(teeth.get("upper", []), doc.width))
+    story.append(Spacer(1, 16))
+
+    story.append(Paragraph("LOWER JAW", jaw_label_style))
+    story.append(ToothMapRow(teeth.get("lower", []), doc.width))
+    story.append(Spacer(1, 14))
+
+    story.append(HRFlowable(width="100%", color=colors.HexColor("#e5e3f0"), thickness=1))
+
+
+
+
+
+
+    # ---- Per-tooth tables --------------------------------------------------
+    def jaw_table(jaw_teeth, jaw_label):
+        story.append(Paragraph(jaw_label, h2_style))
+        header = ["FDI #", "Tooth", "Status", "Bone loss"]
+        rows = [header]
+        row_colors = []
+        for t in jaw_teeth:
+            status = t.get("status")
+            name = FDI_TOOTH_NAMES.get(t["tooth_number"], t["tooth_number"])
+            pct = t.get("bone_loss_pct")
+            pct_display = f"{pct}%" if pct is not None else "—"
+            rows.append([
+                t["tooth_number"], name,
+                _STATUS_LABELS.get(status, status or "—"),
+                pct_display,
+            ])
+            row_colors.append(_STATUS_ROW_COLORS.get(status))
+
+        tbl = Table(rows, colWidths=[45, 220, 100, 115], repeatRows=1)
+        style = [
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4f46e5")),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("LINEBELOW", (0, 0), (-1, -1), 0.4, colors.HexColor("#e5e3f0")),
+            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e3f0")),
+        ]
+        for i, c in enumerate(row_colors, start=1):
+            if c:
+                style.append(("BACKGROUND", (0, i), (-1, i), c))
+        tbl.setStyle(TableStyle(style))
+        story.append(tbl)
+        story.append(Spacer(1, 12))
+
+    jaw_table(teeth.get("upper", []), "Upper Jaw")
+    jaw_table(teeth.get("lower", []), "Lower Jaw")
+
+    story.append(Spacer(1, 6))
+    story.append(HRFlowable(width="100%", color=colors.HexColor("#e5e3f0"), thickness=1))
+    story.append(Paragraph(
+        "Generated by PerioDx — AI-assisted periodontal screening. "
+        "This report supports, but does not replace, clinical judgment.",
+        sub_style
+    ))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer

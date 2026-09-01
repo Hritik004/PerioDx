@@ -847,6 +847,25 @@
       chatBtn.addEventListener('click', () => openAIChatForReport(r.id, patientFullName, r.periodontitis_stage));
       top.appendChild(chatBtn);
 
+
+      // ---- Download full report as PDF ----
+      const downloadBtn = document.createElement('a');
+      downloadBtn.className = 'dh-chat-btn';
+      downloadBtn.style.background = 'linear-gradient(135deg,var(--violet-1),var(--violet-3))';
+      downloadBtn.style.boxShadow = '0 10px 22px rgba(106,95,240,0.24)';
+      downloadBtn.href = '/api/reports/' + r.id + '/pdf';
+      downloadBtn.setAttribute('download', '');
+      downloadBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        Download PDF
+      `;
+      top.appendChild(downloadBtn);
+
+
       detailHead.appendChild(top);
       detailHead.appendChild(el('div', 'dh-sub', formatDate(r.report_date)));
 
